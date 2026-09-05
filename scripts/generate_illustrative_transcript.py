@@ -11,8 +11,6 @@ Run:  python scripts/generate_illustrative_transcript.py
 """
 from __future__ import annotations
 
-import pandas as pd
-
 from src.common import config
 from src.text2sql.execute_readonly import SQLExecutionError, run_query
 from src.text2sql.validate_sql import SQLValidationError
@@ -82,7 +80,8 @@ def _run_case(question, attempts, answer_fn) -> str:
     for i, sql in enumerate(attempts, start=1):
         try:
             df = run_query(sql)
-            out.append(f"<details><summary>Attempt {i} — OK</summary>\n\n```sql\n{sql}\n```\n</details>\n")
+            out.append(f"<details><summary>Attempt {i} — OK</summary>\n\n"
+                       f"```sql\n{sql}\n```\n</details>\n")
             final_df = df
             break
         except (SQLValidationError, SQLExecutionError) as exc:
@@ -112,8 +111,8 @@ def main() -> None:
         "warehouse, so the queries and result rows are genuine. The natural-"
         "language phrasing is a templated stand-in because no `ANTHROPIC_API_KEY` "
         "was available at build time — run `python -m src.text2sql.demo` with a key "
-        "for live Claude-generated SQL and answers. Data is the synthetic fixture "
-        "(see DECISIONS.md §0).\n",
+        "for live Claude-generated SQL and answers. Queries run against the **real "
+        "CMS warehouse** (2022–2024 provider data, 2013–2024 geography series).\n",
         "Note the 2nd question: the first attempt uses a wrong column name, the DB "
         "error is captured, and the corrected query succeeds — the agentic retry "
         "loop. The last question is a write attempt and is refused outright.\n",

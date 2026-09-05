@@ -1,16 +1,14 @@
 # Data Quality Summary
 
-> ⚠️ **SYNTHETIC DATA** — these figures come from the local fixture, not the real CMS file. Regenerate after running the real download.
 
-
-- Rows read (raw): **4,609**
-- Rows after cleaning + scope filter: **4,609**
-- Distinct prescribers: **280**
-- Years: **[2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]**
+- Rows read (raw): **893,997**
+- Rows after cleaning + scope filter: **765,841**
+- Distinct prescribers: **204,044**
+- Years: **[2022, 2023, 2024]**
 - States: **['CA', 'FL', 'NY', 'TX']**
 - Drugs (generic): **['Amoxicillin', 'Anastrozole', 'Atorvastatin Calcium', 'Metformin Hcl']**
-- Total claims (scoped): **992,312**
-- Rows with suppressed Tot_Benes (true count 1-10): **7.03%** — kept as NaN + `Benes_Suppressed=True`, never zero-filled.
+- Total claims (scoped): **102,019,574**
+- Rows with suppressed Tot_Benes (true count 1-10): **26.13%** — kept as NaN + `Benes_Suppressed=True`, never zero-filled.
 
 ## Known censoring (missing-not-at-random)
 

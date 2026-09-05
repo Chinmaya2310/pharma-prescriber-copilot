@@ -16,10 +16,14 @@ import matplotlib.pyplot as plt  # noqa: E402
 from src.common import config  # noqa: E402
 
 
-def _trend_by_class(df: pd.DataFrame) -> pd.DataFrame:
+def _trend_by_class(series: pd.DataFrame) -> pd.DataFrame:
+    # Uses the full-history state-level series (by-Geography) so the trend spans
+    # all available years, not just the 2 provider years used for segmentation.
+    s = series.copy()
+    s["Drug_Class"] = s["Gnrc_Name"].map(config.DRUG_CLASS)
     piv = (
-        df.groupby(["Year", "Drug_Class"])["Tot_Clms"].sum().reset_index()
-        .pivot(index="Year", columns="Drug_Class", values="Tot_Clms")
+        s.groupby(["Year", "Drug_Class"])["claims"].sum().reset_index()
+        .pivot(index="Year", columns="Drug_Class", values="claims")
         .sort_index()
     )
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -66,8 +70,11 @@ def _by_specialty(df: pd.DataFrame) -> pd.Series:
 def _write_summary(
     df: pd.DataFrame, trend: pd.DataFrame, top_spec: pd.Series, synthetic: bool
 ) -> None:
-    years = sorted(df["Year"].unique())
-    first, last = years[0], years[-1]
+    # Trend year-range comes from the geography series (full history); the
+    # specialty leader is computed from the latest provider year.
+    trend_years = list(trend.index)
+    first, last = trend_years[0], trend_years[-1]
+    prov_latest = int(df["Year"].max())
     growth_lines = []
     for cls in trend.columns:
         a, b = trend[cls].iloc[0], trend[cls].iloc[-1]
@@ -75,7 +82,7 @@ def _write_summary(
             pct = (b - a) / a * 100
             growth_lines.append(f"  - **{cls}**: {pct:+.0f}% from {first} to {last}")
     leader = top_spec.index[0]
-    leader_share = top_spec.iloc[0] / df[df["Year"] == last]["Tot_Clms"].sum() * 100
+    leader_share = top_spec.iloc[0] / df[df["Year"] == prov_latest]["Tot_Clms"].sum() * 100
 
     banner = ("> ⚠️ **SYNTHETIC DATA** — illustrative patterns only; regenerate from "
               "real CMS data before quoting.\n\n" if synthetic else "")
@@ -88,9 +95,9 @@ def _write_summary(
         f"1. **Divergent class trajectories** ({first}→{last}):",
         *growth_lines,
         f"\n2. **Specialty concentration**: `{leader}` is the single largest "
-        f"prescribing specialty in {last} (~{leader_share:.0f}% of scoped claims), "
-        "confirming prescribing is concentrated in a handful of specialties — "
-        "relevant for targeting and territory design.\n",
+        f"prescribing specialty in {prov_latest} (~{leader_share:.0f}% of scoped "
+        "claims), confirming prescribing is concentrated in a handful of "
+        "specialties — relevant for targeting and territory design.\n",
         f"3. **Geographic spread**: claim volumes differ markedly across "
         f"{', '.join(sorted(df['Prscrbr_State_Abrvtn'].unique()))}, so demand "
         "forecasts and territory quotas should be built per-state, not nationally.",
@@ -99,11 +106,14 @@ def _write_summary(
 
 
 def run(df: pd.DataFrame | None = None) -> None:
+    from src.forecasting import series as S
+
     if df is None:
         df = pd.read_parquet(config.PROCESSED_PARQUET)
     synthetic = (config.REPORTS_DIR / "data_quality.md").exists() and \
         "SYNTHETIC" in (config.REPORTS_DIR / "data_quality.md").read_text()
-    trend = _trend_by_class(df)
+    geo_series = S.load_series()  # full-history state-level series for the trend
+    trend = _trend_by_class(geo_series)
     _by_state(df)
     top_spec = _by_specialty(df)
     _write_summary(df, trend, top_spec, synthetic)

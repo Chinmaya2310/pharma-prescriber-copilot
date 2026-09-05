@@ -69,7 +69,29 @@ def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
+def load_series() -> pd.DataFrame:
+    """Return the annual (drug, state, year) demand series used for forecasting.
+
+    Prefers the state-level series built from the CMS *by-Geography* dataset
+    (clean_geography.build_series -> forecast_series.parquet), which gives a full
+    ~12-year history at exactly the grain forecasting needs. Falls back to
+    aggregating the provider fact table (used by the synthetic/CI path, where the
+    geography file isn't present) so the pipeline still runs end-to-end.
+    """
+    if config.FORECAST_SERIES_PARQUET.exists():
+        return pd.read_parquet(config.FORECAST_SERIES_PARQUET)
+    df = pd.read_parquet(config.PROCESSED_PARQUET)
+    series = build_annual_series(df)
+    series.to_parquet(config.FORECAST_SERIES_PARQUET, index=False)
+    return series
+
+
 def build_and_save(df: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Aggregate the provider fact table to a state-level series and persist it.
+
+    Used by the synthetic/CI path (no geography file). The real path builds the
+    series from the by-Geography dataset via clean_geography.build_series().
+    """
     if df is None:
         df = pd.read_parquet(config.PROCESSED_PARQUET)
     series = build_annual_series(df)

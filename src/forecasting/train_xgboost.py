@@ -5,16 +5,12 @@ exists so you can inspect XGBoost in isolation.
 """
 from __future__ import annotations
 
-import pandas as pd
-
-from src.common import config
 from src.forecasting import series as S
 from src.forecasting.compare import evaluate
 
 
 def main() -> None:
-    df = pd.read_parquet(config.PROCESSED_PARQUET)
-    series = S.build_and_save(df)
+    series = S.load_series()
     keep, _ = S.eligible_series(series)
     cv = evaluate(series, keep)
     print(cv[cv["model"] == "xgboost"].to_string(index=False))

@@ -2,10 +2,10 @@
 
 Rolling-origin CV, expanding window, 1-year horizon, pooled across all eligible (drug, state) series.
 
-| model   |   n_folds |   MAPE |   RMSE |
-|:--------|----------:|-------:|-------:|
-| prophet |       112 |  18.18 | 1452.7 |
-| xgboost |       112 |  22.71 | 1899.9 |
+| model   |   n_folds |   MAPE |     RMSE |
+|:--------|----------:|-------:|---------:|
+| prophet |       128 |   3.09 |  71128.8 |
+| xgboost |       128 |   5.26 | 155589   |
 
 **Winner (lower MAPE): `prophet`** — served by the API and dashboard.
 

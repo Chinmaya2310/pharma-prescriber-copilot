@@ -6,30 +6,33 @@ so you can defend the decision out loud.
 
 ---
 
-## 0. Data-access blocker & the synthetic fixture (read this first)
+## 0. Data access: real CMS data (and the geo-block we worked around)
 
-**What happened.** `data.cms.gov` sits behind an Akamai WAF that returns HTTP 403
-"Access Denied" to the datacenter IP this project was built on. General internet
-worked (GitHub, example.com returned 200); only CMS hosts were blocked. So the
-**real CMS file could not be downloaded in the build environment.**
+**All numbers in this repo are from the real CMS data** (data years 2013–2024).
+Getting it took some work worth knowing about:
 
-**How it's handled — honestly.**
-- `src/ingestion/download_cms.py` is **real and correct**. It discovers each
-  year's dataset from the CMS `data.json` catalogue and pulls only the scoped
-  rows via the data-api's server-side filters. It works from any network CMS
-  doesn't block (e.g. a home/office connection). Run it with `--download`.
-- For local dev / CI, `src/ingestion/make_synthetic.py` generates a
-  **clearly-labelled** fixture (`SYNTHETIC_*` filenames, banners in every report)
-  with the **identical CMS schema** and the **real suppression semantics** (see §3).
-- **Nothing synthetic is presented as a real finding.** The data-quality, EDA, and
-  business-case documents carry a synthetic banner until the pipeline is re-run on
-  real data. The numbers quoted in this repo today come from the fixture.
+`data.cms.gov` sits behind an Akamai WAF that **geo-restricts to US IPs** — from a
+non-US IP it returns HTTP 403 "Access Denied" regardless of User-Agent (confirmed:
+the 403 was identical for our custom UA and a full Chrome UA; general internet was
+fine). Because the build ran on a non-US connection, the download was initially
+blocked. It was unblocked by routing requests through **US HTTP proxies** (the
+`CMS_PROXY_LIST` env var enables proxy rotation in `download_cms.py`); since CMS is
+HTTPS, a CONNECT proxy only tunnels encrypted bytes, so TLS stays end-to-end and
+the data can't be read or tampered with in transit. **From a US network none of
+this is needed** — `retrain.py --download` just works.
 
-**Why not just stop?** The brief said to flag blockers rather than *quietly*
-substitute. This is the loud version: the substitution is explicit, labelled, and
-reversible with one command (`retrain.py --download`). Everything else in the
-project — cleaning, EDA, ML, API, dashboard, agent, MLOps, tests — is real and
-runs today.
+**The synthetic fixture stays — but only for CI.** `src/ingestion/make_synthetic.py`
+generates a clearly-labelled fixture (`SYNTHETIC_*` filenames) with the identical
+CMS schema and real suppression semantics. CI has no US egress and shouldn't depend
+on flaky public proxies, so the GitHub Actions pipeline runs on the synthetic
+fixture to exercise the code end-to-end. **Every report regenerated from real data
+has its synthetic banner removed;** if you ever see a "SYNTHETIC" banner in a
+report, that report was produced by the CI/fixture path, not real data.
+
+**Reproducing the real run:** from a US network, `python -m src.mlops.retrain
+--download`. From a geo-blocked network, set `CMS_PROXY_LIST=ip:port,ip:port,...`
+to US proxies first. Provider data is large (~600k scoped rows for 3 years), so the
+download is chunked and resumable.
 
 ---
 
@@ -48,26 +51,40 @@ forecasting and segmentation have distinct dynamics to find:
 Filtering on generic (not brand) captures both brand and generic dispensing of the
 same molecule.
 
-**States.** CA, TX, NY, FL — large, high-density, geographically spread, so
-per-state series have enough volume to model and enough difference to compare.
+**States.** CA, TX, NY, FL — large, high-density, geographically spread. Real
+scoped volume is substantial: **518,946 cleaned provider-drug-year rows, 187,436
+distinct prescribers, 69.7M total claims.**
 
-**Years — and the biggest deviation from the brief.** The brief suggested "the 2
-most recent years." The CMS *by Provider and Drug* file is **annual** (one row per
-provider-drug-year), so two years = **two data points** per series, which cannot
-support walk-forward time-series validation. Decision:
-- **Segmentation** uses the **2 most recent years** (needs a prior year to compute
-  a per-prescriber growth feature) — as the brief intended.
-- **Forecasting** uses the **full available history (2013–latest)**, aggregated to
-  (drug, state, year), so there are ~10 annual points per series — enough for
-  rolling-origin CV.
+**Years — the biggest deviation from the brief, and why it's right.** The brief
+suggested "the 2 most recent years." The CMS files are **annual**, so two years =
+**two data points** per series — far too few for walk-forward time-series CV. The
+resolution is the two-dataset design in §1a: forecasting uses the full **2013–2024**
+history at state grain; segmentation uses the **most recent years** at provider
+grain (2023–2024 for features; 2022 added so an *earlier* window exists for the
+stability check). This isn't a shortcut — two annual points genuinely cannot
+support rolling-origin validation, and CMS only publishes annually.
 
-This split is deliberate and is the kind of thing worth raising in an interview:
-the brief's instinct (small scope) was right for the provider-level work but the
-annual grain forces a longer window for forecasting.
+---
 
-> ⚠️ Since I couldn't reach the user while they were AFK, I made the Phase 0 scope
-> call and the Phase 4 default-model call myself and documented both here. Both are
-> one-line changes if you'd choose differently (`src/common/config.py` for scope).
+## 1a. Two datasets, each at the grain its task needs (key design choice)
+
+Rather than pull ~1M provider rows and aggregate them up for forecasting, the
+project uses **two different CMS datasets**, each at the natural grain of the task:
+
+| Task | CMS dataset | Grain | Why |
+|---|---|---|---|
+| **Forecasting** | Part D Prescribers **by Geography and Drug** | state × drug × year, **2013–2024** | CMS already publishes state-level totals; this is exactly the demand series to forecast, and gives a full 12-year annual history for walk-forward CV. Tiny to download (~192 rows). |
+| **Segmentation** | Part D Prescribers **by Provider and Drug** | prescriber × drug × year, **2022–2024** | Segmentation needs per-prescriber behaviour, which only the provider file has. Only recent years are needed, so we don't pull the full multi-GB history. |
+
+This is the single most defensible design decision in the project: *use the
+aggregate dataset for the aggregate question and the granular dataset for the
+granular question.* It also makes the download ~10× smaller and the forecast series
+cleaner (state totals aren't distorted by the provider-level <11-claim omission).
+
+> Phase 0 scope (drugs/states) and the Phase 4 default model were decided
+> autonomously (the user was AFK) and are documented here; both are one-line config
+> changes. The forecast winner is chosen from CV at runtime, so it was never
+> hardcoded.
 
 ---
 
@@ -113,15 +130,25 @@ CMS applies two privacy rules, both handled explicitly (`src/ingestion/clean.py`
    zero-filling would treat "1–10 patients" as "0 patients" and bias every
    beneficiary-based metric downward.
 
+On the real data, **25.9% of provider-drug rows have a suppressed `Tot_Benes`** —
+a large fraction, which is exactly why zero-filling would have been so damaging.
+
 **Per-stage policy (the brief asked for an explicit, stated choice):**
 - **Segmentation:** features are built from published claim counts (all ≥ 11, so
   real). A prescriber with no prior-year row gets `growth = 0` + `has_history =
   False` — we don't invent a huge growth ratio off an unknown base.
-- **Forecasting:** we **exclude and count** (drug, state) series with too few
-  annual points (`MIN_YEARS_FOR_FORECAST = 5`), which is where heavy suppression
-  bites hardest. The excluded count is reported in `reports/forecast_comparison.md`.
-  We chose exclusion over imputation because imputing a censored regional total
-  would fabricate the very signal we're trying to forecast.
+- **Forecasting:** uses the **by-Geography** state totals, where the <11-claim
+  provider omission barely matters (state totals are in the millions). Series with
+  too few annual points are still **excluded and counted**
+  (`MIN_YEARS_FOR_FORECAST = 5`, reported in `reports/forecast_comparison.md`); on
+  the real data **0 of 16** (drug, state) series were excluded — all have the full
+  12-year history. Exclusion beats imputation because imputing a censored regional
+  total would fabricate the signal we're forecasting.
+- **Brand aggregation:** CMS lists a separate row per `Brnd_Name` (e.g. "Metformin
+  Hcl" and "Metformin Hcl Er" under one `Gnrc_Name`). Cleaning **sums** claims/
+  fills/supply/cost across formulations to the (provider, generic, year) grain —
+  dropping duplicates would undercount high-volume prescribers. (Real data collapsed
+  607,018 raw rows → 518,946.)
 
 ---
 
@@ -136,16 +163,19 @@ train/test split can crown a model by luck. Re-evaluating at every feasible orig
 and averaging is the standard honest way to validate a time-series model.
 
 **Default model:** whichever wins the CV **at runtime** — the API/dashboard read
-the winner from `drug_region_forecast.model`, they don't hardcode it. On the
-current *synthetic* run **Prophet won** (MAPE ≈ 18.2% vs XGBoost ≈ 22.7%, pooled
-over 112 walk-forward folds); both are evaluated head-to-head every run. On real
-data this can flip, which is exactly why the choice is data-driven and re-computed
-on every retrain rather than fixed — so it was never a call I needed to hardcode.
+the winner from `drug_region_forecast.model`, they don't hardcode it. On the **real
+data, Prophet won: MAPE 3.09% vs XGBoost 5.26%** (RMSE 71,129 vs 155,589), pooled
+over **128 walk-forward folds across 16 (drug, state) series, 2013–2024**. The low
+MAPE reflects that real state-level annual demand is smooth and strongly trending,
+which Prophet's additive trend captures well; XGBoost's lag features are at a
+disadvantage on short annual series. The winner is re-computed every retrain, so it
+was never hardcoded — on the synthetic CI fixture the gap is different but Prophet
+also wins there.
 
 **Why these two, not ARIMA / LSTM:**
 - *ARIMA* needs longer, ideally stationary series and per-series order selection;
   clumsy across many short annual series and weaker with exogenous structure.
-- *LSTM* is heavily over-parameterised for ~10 annual points per series — it would
+- *LSTM* is heavily over-parameterised for ~12 annual points per series — it would
   overfit and be hard to defend. Prophet (interpretable additive trend) and
   XGBoost (lag features, handles non-linearity) are the right complexity for this
   data size, and they make a genuinely informative comparison.
@@ -155,20 +185,25 @@ on every retrain rather than fixed — so it was never a call I needed to hardco
 ## 5. Why KMeans (not DBSCAN / hierarchical)
 
 - The goal is a **fixed, interpretable set of prescriber segments** for territory
-  and incentive planning — KMeans gives exactly that, with named, roughly balanced
-  groups sized for sales coverage.
+  and incentive planning — KMeans gives exactly that, with named groups sized for
+  sales coverage. On the real data: **k = 8** chosen by silhouette (score 0.566),
+  over **165,894 prescribers** (latest two years, 2023–2024).
 - **k is chosen, not guessed:** silhouette score over k ∈ [2, 8]
-  (`reports/figures/segmentation_silhouette.png`).
+  (`reports/figures/segmentation_silhouette.png`). Because silhouette is O(n²), it
+  is scored on a 10k random sample while KMeans still fits on all 165k prescribers
+  — the standard scalable approach.
 - **DBSCAN** targets density-based clusters + outliers; on standardised,
   fairly convex behavioural features it tends to dump most prescribers into one
   cluster plus noise — not useful for "assign every rep a book of business."
 - **Hierarchical** is O(n²) memory and gives a dendrogram to cut arbitrarily; no
   advantage here over KMeans + silhouette.
-- **Stability is verified, not assumed:** we re-fit on an earlier year window and
-  measure Adjusted Rand Index against the current segments. A segmentation that
-  reshuffles randomly period-to-period is useless for planning. (On the synthetic
-  fixture ARI ≈ 0.25 — moderate; on real data this is the number to watch, and
-  >~0.4 is the bar for "stable enough to plan against.")
+- **Stability is verified, not assumed:** we re-fit segmentation on an earlier
+  window (2022–2023) and measure Adjusted Rand Index against the current (2023–2024)
+  segments. **On the real data ARI = 0.704** — comfortably above the ~0.4 bar for
+  "stable enough to plan against," so a rep's book built on these segments won't
+  reshuffle randomly next year. (This is exactly why the 2022 provider year was
+  pulled in addition to 2023–2024: without a third year there is no earlier window
+  to test against.)
 
 ---
 

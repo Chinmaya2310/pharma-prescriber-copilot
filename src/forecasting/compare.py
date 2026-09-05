@@ -92,10 +92,10 @@ def _plot_example(series: pd.DataFrame, keys, winner: str) -> None:
     plt.close(fig)
 
 
-def run(df: pd.DataFrame | None = None) -> dict:
-    if df is None:
-        df = pd.read_parquet(config.PROCESSED_PARQUET)
-    series = S.build_and_save(df)
+def run() -> dict:
+    # Forecast series comes from the by-Geography dataset when available (full
+    # ~12-year history), else falls back to aggregating the provider table.
+    series = S.load_series()
     keep, drop = S.eligible_series(series)
 
     cv = evaluate(series, keep)

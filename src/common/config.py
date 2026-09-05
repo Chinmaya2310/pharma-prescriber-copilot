@@ -58,9 +58,15 @@ DRUG_CLASS: dict[str, str] = {
 # Large, high-density states with geographic + practice-pattern variety.
 SCOPE_STATES: list[str] = ["CA", "TX", "NY", "FL"]
 
+# The by-Geography dataset labels states by full name; map to our abbreviations.
+STATE_NAME_TO_ABBR: dict[str, str] = {
+    "California": "CA", "Texas": "TX", "New York": "NY", "Florida": "FL",
+}
+
 # Full year range the CMS dataset is expected to cover. download_cms.py discovers
 # which years actually exist; anything here that is unavailable is skipped.
-CANDIDATE_YEARS: list[int] = list(range(2013, 2024))
+# The real CMS catalogue currently spans data years 2013-2024.
+CANDIDATE_YEARS: list[int] = list(range(2013, 2025))
 
 # Number of most-recent years used for the *provider-level* segmentation
 # (needs >=2 years to compute a growth-trend feature per prescriber).

@@ -18,6 +18,12 @@ def load(parquet_path=config.PROCESSED_PARQUET) -> int:
     if "Benes_Suppressed" in df.columns:
         df["Benes_Suppressed"] = df["Benes_Suppressed"].astype(int)
     write_table(df, "prescribers")
+
+    # Also expose the annual state-level demand series (by-Geography) for querying.
+    if config.FORECAST_SERIES_PARQUET.exists():
+        series = pd.read_parquet(config.FORECAST_SERIES_PARQUET)
+        write_table(series, "geo_drug_year")
+
     return len(df)
 
 

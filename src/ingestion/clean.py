@@ -57,9 +57,29 @@ def clean(raw_dir: Path = config.RAW_DIR, out_path: Path = config.PROCESSED_PARQ
     df["Prscrbr_Type"] = df["Prscrbr_Type"].fillna("Unknown").astype(str).str.strip()
     df["Drug_Class"] = df["Gnrc_Name"].map(config.DRUG_CLASS)
 
-    # --- de-duplicate on the natural key ---
+    # --- aggregate brand rows to the (provider, generic, year) grain ---
+    # CMS lists a separate row per Brnd_Name (e.g. "Metformin Hcl" and
+    # "Metformin Hcl Er" both under Gnrc_Name "Metformin Hcl"). Claims, fills, day
+    # supply and cost ARE additive across formulations, so we SUM them — dropping
+    # duplicates would undercount high-volume prescribers. Beneficiary counts are
+    # NOT cleanly additive across formulations (a patient may take both), so we
+    # take the max as a conservative figure and flag suppression if ANY brand row
+    # was suppressed. Tot_Benes is not used downstream for modelling; claims are.
     key = ["Prscrbr_NPI", "Gnrc_Name", "Year"]
-    df = df.drop_duplicates(subset=key, keep="first").reset_index(drop=True)
+    agg = {
+        "Tot_Clms": "sum",
+        "Tot_30day_Fills": "sum",
+        "Tot_Day_Suply": "sum",
+        "Tot_Drug_Cst": "sum",
+        "Tot_Benes": "max",
+        "Benes_Suppressed": "max",
+        "Prscrbr_State_Abrvtn": "first",
+        "Prscrbr_Type": "first",
+        "Prscrbr_City": "first",
+        "Drug_Class": "first",
+    }
+    agg = {k: v for k, v in agg.items() if k in df.columns}
+    df = df.groupby(key, as_index=False).agg(agg)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out_path, index=False)

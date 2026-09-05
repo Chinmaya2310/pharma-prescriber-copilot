@@ -1,6 +1,6 @@
 # Text-to-SQL Assistant — Illustrative Transcript
 
-> **Illustrative build-time artifact.** The SQL below is run through the *real* validator and the *real* read-only connection against the warehouse, so the queries and result rows are genuine. The natural-language phrasing is a templated stand-in because no `ANTHROPIC_API_KEY` was available at build time — run `python -m src.text2sql.demo` with a key for live Claude-generated SQL and answers. Data is the synthetic fixture (see DECISIONS.md §0).
+> **Illustrative build-time artifact.** The SQL below is run through the *real* validator and the *real* read-only connection against the warehouse, so the queries and result rows are genuine. The natural-language phrasing is a templated stand-in because no `ANTHROPIC_API_KEY` was available at build time — run `python -m src.text2sql.demo` with a key for live Claude-generated SQL and answers. Queries run against the **real CMS warehouse** (2022–2024 provider data, 2013–2024 geography series).
 
 Note the 2nd question: the first attempt uses a wrong column name, the DB error is captured, and the corrected query succeeds — the agentic retry loop. The last question is a write attempt and is refused outright.
 
@@ -17,18 +17,18 @@ SELECT Prscrbr_Type, SUM(Tot_Clms) AS total FROM prescribers WHERE Gnrc_Name='Me
 </details>
 
 
-**Answer:** In CA's latest year, **Endocrinology** led Metformin Hcl prescribing with 3,859 claims.
+**Answer:** In CA's latest year, **Family Practice** led Metformin Hcl prescribing with 1,313,510 claims.
 
 
 **Result rows:**
 
 | Prscrbr_Type        |   total |
 |:--------------------|--------:|
-| Endocrinology       |    3859 |
-| Family Practice     |    3077 |
-| Internal Medicine   |    2612 |
-| General Practice    |    1801 |
-| Physician Assistant |     927 |
+| Family Practice     | 1313510 |
+| Internal Medicine   | 1261340 |
+| Nurse Practitioner  |  336303 |
+| Physician Assistant |  214578 |
+| Endocrinology       |  142858 |
 
 ---
 
@@ -53,15 +53,15 @@ SELECT Year, SUM(Tot_Clms) AS total FROM prescribers WHERE Gnrc_Name='Amoxicilli
 </details>
 
 
-**Answer:** Amoxicillin claims in TX went from 3,102 in 2022 to 3,664 in 2023 (+18.1%).
+**Answer:** Amoxicillin claims in TX went from 496,263 in 2023 to 523,248 in 2024 (+5.4%).
 
 
 **Result rows:**
 
 |   Year |   total |
 |-------:|--------:|
-|   2022 |    3102 |
-|   2023 |    3664 |
+|   2023 |  496263 |
+|   2024 |  523248 |
 
 ---
 
@@ -75,18 +75,18 @@ SELECT Prscrbr_NPI, SUM(Tot_Clms) AS total FROM prescribers WHERE Prscrbr_State_
 </details>
 
 
-**Answer:** The top prescriber in NY had 2,921 claims; the top 5 are listed below.
+**Answer:** The top prescriber in NY had 6,764 claims; the top 5 are listed below.
 
 
 **Result rows:**
 
 |   Prscrbr_NPI |   total |
 |--------------:|--------:|
-|    1000000147 |    2921 |
-|    1000000188 |    2405 |
-|    1000000195 |    1728 |
-|    1000000167 |    1632 |
-|    1000000186 |    1591 |
+|    1144340225 |    6764 |
+|    1154417871 |    6730 |
+|    1316124795 |    6551 |
+|    1619082625 |    6321 |
+|    1942335096 |    6163 |
 
 ---
 
@@ -100,17 +100,17 @@ SELECT Drug_Class, SUM(Tot_Clms) AS total FROM prescribers WHERE Year=(SELECT MA
 </details>
 
 
-**Answer:** In the latest year, **Cardiovascular (Statin)** was the largest class (62,126 claims); full breakdown below.
+**Answer:** In the latest year, **Cardiovascular (Statin)** was the largest class (22,232,402 claims); full breakdown below.
 
 
 **Result rows:**
 
-| Drug_Class                     |   total |
-|:-------------------------------|--------:|
-| Cardiovascular (Statin)        |   62126 |
-| Antidiabetic                   |   48097 |
-| Antibiotic                     |   18562 |
-| Oncology (Aromatase Inhibitor) |     875 |
+| Drug_Class                     |    total |
+|:-------------------------------|---------:|
+| Cardiovascular (Statin)        | 22232402 |
+| Antidiabetic                   | 10543063 |
+| Antibiotic                     |  2520023 |
+| Oncology (Aromatase Inhibitor) |   464825 |
 
 ---
 
@@ -124,14 +124,14 @@ SELECT gnrc_name, state, year, forecast_claims, model FROM drug_region_forecast 
 </details>
 
 
-**Answer:** The prophet model forecasts 15,557 Atorvastatin Calcium claims in FL for 2024.
+**Answer:** The prophet model forecasts 5,326,458 Atorvastatin Calcium claims in FL for 2025.
 
 
 **Result rows:**
 
 | gnrc_name            | state   |   year |   forecast_claims | model   |
 |:---------------------|:--------|-------:|------------------:|:--------|
-| Atorvastatin Calcium | FL      |   2024 |           15557.2 | prophet |
+| Atorvastatin Calcium | FL      |   2025 |       5.32646e+06 | prophet |
 
 ---
 

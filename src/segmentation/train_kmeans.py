@@ -26,14 +26,20 @@ from src.segmentation.features import FEATURE_COLS, build_features  # noqa: E402
 
 K_RANGE = range(2, 9)
 RANDOM_STATE = 42
+N_INIT = 5
+# silhouette_score is O(n^2); with ~165k prescribers we score on a random sample
+# (KMeans itself still fits on ALL points). This is the standard scalable approach.
+SILHOUETTE_SAMPLE = 10_000
 
 
 def _choose_k(X) -> tuple[int, dict[int, float]]:
     scores: dict[int, float] = {}
+    sample = min(SILHOUETTE_SAMPLE, len(X))
     for k in K_RANGE:
-        km = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=10)
+        km = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=N_INIT)
         labels = km.fit_predict(X)
-        scores[k] = float(silhouette_score(X, labels))
+        scores[k] = float(silhouette_score(X, labels, sample_size=sample,
+                                           random_state=RANDOM_STATE))
     best_k = max(scores, key=scores.get)
     return best_k, scores
 
@@ -72,14 +78,15 @@ def _name_segments(profile: pd.DataFrame) -> dict[int, str]:
             grow = "declining"
         else:
             grow = "steady"
-        names[cid] = f"{tier} {breadth} {focus}-leaning ({grow})"
+        # Append avg volume so segments sharing a coarse label stay distinct + informative.
+        names[cid] = f"{tier} {breadth} {focus}-leaning ({grow}, ~{row['volume']:,.0f} clms/yr)"
     return names
 
 
 def _fit(feats: pd.DataFrame, k: int):
     scaler = StandardScaler()
     X = scaler.fit_transform(feats[FEATURE_COLS])
-    km = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=10)
+    km = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=N_INIT)
     labels = km.fit_predict(X)
     return scaler, km, labels
 
@@ -95,7 +102,7 @@ def train(df: pd.DataFrame | None = None) -> dict:
     best_k, scores = _choose_k(X)
     _save_silhouette_plot(scores, best_k)
 
-    km = KMeans(n_clusters=best_k, random_state=RANDOM_STATE, n_init=10)
+    km = KMeans(n_clusters=best_k, random_state=RANDOM_STATE, n_init=N_INIT)
     feats["segment_id"] = km.fit_predict(X)
 
     profile = feats.groupby("segment_id")[FEATURE_COLS].mean()

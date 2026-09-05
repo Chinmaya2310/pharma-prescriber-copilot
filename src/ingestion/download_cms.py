@@ -3,20 +3,26 @@ Provider and Drug dataset.
 
 Strategy: instead of pulling the multi-GB national CSV per year, we use the CMS
 data-api with *server-side* filters on state and generic-drug name, so only the
-scoped rows ever cross the wire. Years are discovered from the CMS data.json
-catalogue so we don't hardcode per-year dataset UUIDs (which change).
+scoped rows ever cross the wire. The dataset is a single catalogue entry with one
+API distribution per data year; we discover those from the CMS data.json
+catalogue (the data year is encoded in each distribution's title date), so no
+per-year UUIDs are hardcoded.
 
-NOTE ON NETWORK ACCESS
-----------------------
-data.cms.gov sits behind an Akamai WAF that blocks some datacenter / cloud IP
-ranges with HTTP 403 "Access Denied". If you hit that, run this from a normal
-residential/office network. For local development / CI where CMS is unreachable,
-use `src/ingestion/make_synthetic.py` to generate a clearly-labelled synthetic
-fixture with the identical schema (see DECISIONS.md).
+NETWORK ACCESS
+--------------
+data.cms.gov sits behind an Akamai WAF that returns HTTP 403 "Access Denied" to
+non-US IP ranges (geographic restriction). From a US network this script works
+directly. From a blocked network, set CMS_PROXY_LIST to one or more US
+`host:port` HTTP proxies (comma-separated) and requests will be routed through
+them, rotating on failure. Because CMS is HTTPS, a CONNECT proxy only tunnels
+encrypted bytes — TLS stays end-to-end, so the proxy cannot read or tamper with
+the data. For fully offline dev / CI, use `src/ingestion/make_synthetic.py`.
 """
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -27,48 +33,66 @@ import requests
 from src.common import config
 
 CATALOG_URL = "https://data.cms.gov/data.json"
-DATASET_TITLE_PREFIX = "Medicare Part D Prescribers - by Provider and Drug"
+DATASET_TITLE = "Medicare Part D Prescribers - by Provider and Drug"
 PAGE_SIZE = 5000
-REQUEST_TIMEOUT = 60
-HEADERS = {"User-Agent": "pharma-prescriber-copilot/1.0 (portfolio research)"}
+REQUEST_TIMEOUT = 20  # keep short: a hung free proxy shouldn't stall a page for 60s
+MAX_TRIES = 12        # more rotation to compensate for the shorter per-try timeout
+# A browser-like UA; the block is IP-based, not UA-based, but this is harmless.
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json,text/plain,*/*",
+}
 
 
-def _get(url: str, **kwargs) -> requests.Response:
-    resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT, **kwargs)
-    if resp.status_code == 403:
-        raise RuntimeError(
-            f"HTTP 403 from {url}. data.cms.gov is blocking this IP (Akamai WAF). "
-            "Run from a non-datacenter network, or use make_synthetic.py for a "
-            "local fixture (see DECISIONS.md)."
-        )
-    resp.raise_for_status()
-    return resp
+def _proxy_pool() -> list[str | None]:
+    raw = os.environ.get("CMS_PROXY_LIST", "").strip()
+    proxies = [p.strip() for p in raw.split(",") if p.strip()]
+    return proxies or [None]  # [None] => direct connection
+
+
+def _get(url: str, params: dict | None = None) -> requests.Response:
+    """GET with proxy rotation + retries. Raises RuntimeError if all attempts fail."""
+    pool = _proxy_pool()
+    last_err: Exception | None = None
+    for attempt in range(MAX_TRIES):
+        proxy = pool[attempt % len(pool)]
+        proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"} if proxy else None
+        try:
+            resp = requests.get(url, headers=HEADERS, params=params,
+                                timeout=REQUEST_TIMEOUT, proxies=proxies)
+            if resp.status_code == 403:
+                raise RuntimeError(
+                    "HTTP 403 (Akamai geo-block). Set CMS_PROXY_LIST to US HTTP "
+                    "proxies, or run from a US network. See DECISIONS.md §0."
+                )
+            resp.raise_for_status()
+            return resp
+        except Exception as exc:  # network hiccup / dead proxy -> rotate & retry
+            last_err = exc
+            time.sleep(0.3)
+    raise RuntimeError(f"All {MAX_TRIES} attempts failed for {url}: {last_err}")
 
 
 def discover_year_datasets() -> dict[int, str]:
-    """Return {year: data-api base URL} for every published year of the dataset."""
+    """Return {data_year: data-api base URL} for every published year."""
     catalog = _get(CATALOG_URL).json()
+    dataset = next(
+        (d for d in catalog.get("dataset", []) if d.get("title") == DATASET_TITLE), None
+    )
+    if dataset is None:
+        raise RuntimeError(f"Dataset '{DATASET_TITLE}' not found in CMS catalogue.")
+
     found: dict[int, str] = {}
-    for ds in catalog.get("dataset", []):
-        title = ds.get("title", "")
-        if not title.startswith(DATASET_TITLE_PREFIX):
+    for dist in dataset.get("distribution", []):
+        access = dist.get("accessURL", "")
+        if "data-api" not in access or "/data" not in access:
+            continue  # skip CSV/other distributions
+        m = re.search(r"(\d{4})-\d{2}-\d{2}", dist.get("title", ""))
+        if not m:
             continue
-        # Title ends with the year, e.g. "... by Provider and Drug : 2022".
-        year = None
-        for token in title.replace(":", " ").split():
-            if token.isdigit() and len(token) == 4:
-                year = int(token)
-        if year is None:
-            continue
-        # Prefer the data-api "latest" distribution accessURL.
-        api_url = None
-        for dist in ds.get("distribution", []):
-            access = dist.get("accessURL", "")
-            if "data-api" in access and "/data" in access:
-                api_url = access
-                break
-        if api_url:
-            found[year] = api_url
+        year = int(m.group(1))
+        found.setdefault(year, access)  # first API distribution per year wins
     return dict(sorted(found.items()))
 
 
@@ -90,7 +114,7 @@ def _fetch_filtered(api_url: str, state: str, generic: str) -> list[dict]:
         if len(batch) < PAGE_SIZE:
             break
         offset += PAGE_SIZE
-        time.sleep(0.2)  # be polite to the API
+        time.sleep(0.2)
     return rows
 
 
@@ -98,11 +122,10 @@ def download(years: list[int] | None = None, out_dir: Path = config.RAW_DIR) -> 
     """Download scoped rows for the requested years; write one CSV per year."""
     available = discover_year_datasets()
     if not available:
-        raise RuntimeError("No matching CMS datasets found in the catalogue.")
+        raise RuntimeError("No matching CMS API distributions found in the catalogue.")
     print(f"CMS published years available: {sorted(available)}")
 
-    want = years or [y for y in config.CANDIDATE_YEARS if y in available]
-    want = [y for y in want if y in available]
+    want = [y for y in (years or config.CANDIDATE_YEARS) if y in available]
     if not want:
         raise RuntimeError(f"None of the requested years exist. Available: {sorted(available)}")
 

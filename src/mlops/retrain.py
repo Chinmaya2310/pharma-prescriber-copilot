@@ -20,13 +20,38 @@ def _raw_exists() -> bool:
     return bool(glob.glob(str(config.RAW_DIR / "*part_d_prescriber_drug_*.csv")))
 
 
+def _geo_raw_exists() -> bool:
+    return bool(glob.glob(str(config.RAW_DIR / "geo" / "geo_part_d_geography_drug_*.csv")))
+
+
+def _build_forecast_series() -> None:
+    """Build forecast_series.parquet from the by-Geography files if present
+    (real path), else aggregate the provider fact table (synthetic/CI fallback)."""
+    if _geo_raw_exists():
+        from src.ingestion.clean_geography import build_series
+        s = build_series()
+        print(f"  forecast series from by-Geography: {len(s):,} rows, "
+              f"years {s['Year'].min()}-{s['Year'].max()}")
+    else:
+        from src.forecasting.series import build_and_save
+        s = build_and_save()
+        print(f"  forecast series from provider aggregation (fallback): {len(s):,} rows")
+
+
 def run(download: bool = False, synthetic: bool = False) -> dict:
     t0 = time.time()
 
     # ---- [1] ingestion ----
     if download:
-        from src.ingestion.download_cms import download as dl
-        dl()
+        # by-Geography (forecasting series, all years) + by-Provider (segmentation,
+        # 2 most recent years — the provider file is huge and only the latest
+        # years are needed for prescriber features).
+        from src.ingestion.download_cms import discover_year_datasets
+        from src.ingestion.download_cms import download as dl_provider
+        from src.ingestion.download_geography import download as dl_geo
+        dl_geo()
+        prov_years = sorted(discover_year_datasets())[-config.SEGMENTATION_YEARS:]
+        dl_provider(years=prov_years)
     elif synthetic:
         from src.ingestion.make_synthetic import generate
         generate()
@@ -41,15 +66,17 @@ def run(download: bool = False, synthetic: bool = False) -> dict:
     from src.ingestion.load_db import load
     from src.segmentation.train_kmeans import train as train_seg
 
-    print("[1/5] cleaning ...")
+    print("[1/6] cleaning provider data ...")
     qc = clean()
-    print("[2/5] loading warehouse ...")
+    print("[2/6] building forecast series (by-Geography if present) ...")
+    _build_forecast_series()
+    print("[3/6] loading warehouse ...")
     n_loaded = load()
-    print("[3/5] EDA ...")
+    print("[4/6] EDA ...")
     run_eda()
-    print("[4/5] segmentation ...")
+    print("[5/6] segmentation ...")
     seg = train_seg()
-    print("[5/5] forecasting ...")
+    print("[6/6] forecasting ...")
     fc = run_forecast()
 
     elapsed = round(time.time() - t0, 1)

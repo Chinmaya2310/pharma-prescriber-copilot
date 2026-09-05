@@ -19,6 +19,9 @@ TABLE_NOTES = {
     "prescriber_segments": "One row per prescriber with their KMeans behavioural "
                            "segment (segment_id, segment_name).",
     "drug_region_forecast": "Forward demand forecast per (gnrc_name, state, year).",
+    "geo_drug_year": "Historical state-level total claims per (Gnrc_Name, State, "
+                     "Year) from the CMS by-Geography dataset — the basis for the "
+                     "forecast. Use this for year-over-year demand questions.",
 }
 
 

@@ -15,27 +15,39 @@ no hallucination, no RAG.
 
 ---
 
-## ⚠️ Data access note (read once)
+## Data
 
-`data.cms.gov` blocks some datacenter IPs with an Akamai 403. The real download
-script works from a normal network; where CMS is unreachable, a **clearly-labelled
-synthetic fixture** (identical schema, real suppression behaviour) lets the whole
-pipeline run and CI pass. Synthetic-derived numbers are labelled as such
-everywhere. Full story in [`DECISIONS.md` §0](DECISIONS.md#0-data-access-blocker--the-synthetic-fixture-read-this-first).
+Built on the **real CMS Medicare Part D Prescribers** public data, using two
+datasets each at the grain its task needs:
+
+- **by Geography and Drug** → state-level demand series, **2013–2024**, for forecasting
+- **by Provider and Drug** → prescriber-level detail, **2022–2024**, for segmentation
+
+Scope: 4 drugs (Metformin, Atorvastatin, Amoxicillin, Anastrozole) × 4 states
+(CA, TX, NY, FL). Real cleaned volume: **518,946 provider-drug-year rows, 187,436
+prescribers, 69.7M claims.**
+
+> **Note on access:** `data.cms.gov` geo-restricts to US IPs (Akamai 403 otherwise).
+> From a US network the download just works. From elsewhere, set `CMS_PROXY_LIST` to
+> US HTTP proxies (the downloader rotates through them; TLS stays end-to-end). CI has
+> no US egress, so it runs on a clearly-labelled **synthetic fixture** — any report
+> showing a "SYNTHETIC" banner came from that path, not real data. Full story in
+> [`DECISIONS.md` §0](DECISIONS.md#0-data-access-real-cms-data-and-the-geo-block-we-worked-around).
 
 ---
 
 ## Architecture
 
 ```
-CMS raw CSV ──▶ [1] Ingestion & Cleaning ──▶ prescribers.parquet ──▶ SQLite warehouse
-                                                     │
-        ┌────────────────────────────┬──────────────┴───────────────┐
-        ▼                            ▼                               ▼
- [2] EDA (saved charts)   [3] Segmentation (KMeans)      [4] Forecasting (Prophet vs
-                          → prescriber_segments             XGBoost, walk-forward CV)
-                                                          → drug_region_forecast
-        └────────────────────────────┴──────────────┬───────────────┘
+CMS by-Geography ─▶ clean_geography ─▶ forecast_series.parquet ─┐
+CMS by-Provider  ─▶ clean ─▶ prescribers.parquet ─▶ SQLite ─────┤
+                                     │                          │
+        ┌────────────────────────────┼──────────────┐          │
+        ▼                            ▼               ▼          ▼
+ [2] EDA (saved charts)   [3] Segmentation    [4] Forecasting (Prophet vs
+                          (KMeans)             XGBoost, walk-forward CV)
+                          → prescriber_segments → drug_region_forecast
+        └────────────────────────────┴──────────────┬───────────┘
                                                      ▼
                                      [5] FastAPI  ──▶  [6] Streamlit dashboard
                                         /segments/{npi}
@@ -58,9 +70,12 @@ pip install -r requirements.txt
 python -c "import cmdstanpy; cmdstanpy.install_cmdstan(version='2.33.1')"
 
 # 2. Get data + run the whole pipeline (ingest → clean → EDA → segment → forecast)
-python -m src.mlops.retrain --download     # real CMS data (needs CMS-reachable network)
-#   or, if CMS is blocked / for a quick local run:
-python -m src.mlops.retrain --synthetic    # labelled synthetic fixture
+python -m src.mlops.retrain --download     # real CMS data (US network; downloads
+                                           # by-Geography all years + by-Provider recent years)
+#   from a geo-blocked (non-US) network, set US proxies first:
+#   export CMS_PROXY_LIST="ip:port,ip:port,..."
+#   or, for a quick offline/CI run on the labelled synthetic fixture:
+python -m src.mlops.retrain --synthetic
 
 # 3. Serve the API
 uvicorn src.api.main:app --reload          # docs at http://127.0.0.1:8000/docs
@@ -77,9 +92,11 @@ python -m src.text2sql.demo                # writes reports/text2sql_transcript.
 
 | Step | Command |
 |---|---|
-| Download real CMS data | `python -m src.ingestion.download_cms` |
+| Download real provider data | `python -m src.ingestion.download_cms --years 2022 2023 2024` |
+| Download real geography data | `python -m src.ingestion.download_geography` |
 | Generate synthetic fixture | `python -m src.ingestion.make_synthetic` |
-| Clean | `python -m src.ingestion.clean` |
+| Clean provider | `python -m src.ingestion.clean` |
+| Build forecast series (geo) | `python -m src.ingestion.clean_geography` |
 | Load warehouse | `python -m src.ingestion.load_db` |
 | EDA (charts + summary) | `python -m src.eda.eda` |
 | Segmentation | `python -m src.segmentation.train_kmeans` |
@@ -101,8 +118,10 @@ python -m src.text2sql.demo                # writes reports/text2sql_transcript.
 
 ## What's produced
 
-- `data/processed/prescribers.parquet` — cleaned fact table
-- `data/processed/warehouse.db` — SQLite warehouse (facts, segments, forecasts)
+- `data/processed/prescribers.parquet` — cleaned provider fact table
+- `data/processed/forecast_series.parquet` — state-level annual demand series (by-Geography)
+- `data/processed/warehouse.db` — SQLite warehouse: `prescribers`, `geo_drug_year`,
+  `prescriber_segments`, `drug_region_forecast`
 - `reports/data_quality.md`, `reports/eda_summary.md`,
   `reports/forecast_comparison.md`, `reports/text2sql_transcript.md`
 - `reports/figures/*.png` — EDA, silhouette, forecast charts

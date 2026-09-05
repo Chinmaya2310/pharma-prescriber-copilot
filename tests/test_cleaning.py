@@ -51,6 +51,40 @@ def test_suppression_handling(tmp_path, monkeypatch):
     assert (tmp_path / "data_quality.md").exists()
 
 
+def test_brand_rows_are_summed_not_dropped(tmp_path, monkeypatch):
+    # Real CMS lists multiple Brnd_Name rows per (provider, generic): e.g.
+    # "Metformin Hcl" and "Metformin Hcl Er". Claims must be SUMMED, not deduped.
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    out = tmp_path / "prescribers.parquet"
+    monkeypatch.setattr(config, "REPORTS_DIR", tmp_path)
+    df = pd.DataFrame({
+        "Prscrbr_NPI": [10, 10],
+        "Prscrbr_Last_Org_Name": ["A", "A"],
+        "Prscrbr_First_Name": ["x", "x"],
+        "Prscrbr_City": ["M", "M"],
+        "Prscrbr_State_Abrvtn": ["CA", "CA"],
+        "Prscrbr_Type": ["Endocrinology", "Endocrinology"],
+        "Brnd_Name": ["Metformin Hcl", "Metformin Hcl Er"],  # two formulations
+        "Gnrc_Name": ["Metformin Hcl", "Metformin Hcl"],
+        "Tot_Clms": [200, 80],
+        "Tot_30day_Fills": [180, 70],
+        "Tot_Day_Suply": [6000, 2400],
+        "Tot_Drug_Cst": [1800.0, 900.0],
+        "Tot_Benes": [40, 23],
+        "Year": [2022, 2022],
+    })
+    df.to_csv(raw / "part_d_prescriber_drug_2022.csv", index=False)
+
+    clean(raw_dir=raw, out_path=out)
+    result = pd.read_parquet(out)
+    assert len(result) == 1  # collapsed to one (provider, generic, year)
+    row = result.iloc[0]
+    assert row["Tot_Clms"] == 280          # 200 + 80 summed
+    assert row["Tot_Drug_Cst"] == 2700.0   # costs summed
+    assert row["Tot_Benes"] == 40          # benes: max, not summed (no double count)
+
+
 def test_features_have_expected_columns():
     df = pd.DataFrame({
         "Prscrbr_NPI": [1, 1, 2],
