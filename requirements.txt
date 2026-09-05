@@ -1,0 +1,37 @@
+# Core data
+pandas==2.2.2
+pyarrow==16.1.0
+numpy==1.26.4
+requests==2.32.3
+
+# ML / stats
+scikit-learn==1.5.1
+xgboost==2.1.1
+prophet==1.1.5
+
+# Storage
+SQLAlchemy==2.0.32
+
+# API
+fastapi==0.112.2
+uvicorn[standard]==0.30.6
+pydantic==2.8.2
+
+# Dashboard
+streamlit==1.38.0
+plotly==5.23.0
+
+# GenAI (text-to-SQL)
+anthropic==0.34.2
+python-dotenv==1.0.1
+sqlglot==25.16.1
+
+# Viz for EDA
+matplotlib==3.9.2
+
+# Markdown tables (df.to_markdown in reports/transcript)
+tabulate==0.9.0
+
+# Dev / test
+pytest==8.3.2
+ruff==0.6.2
