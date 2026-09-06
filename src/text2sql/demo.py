@@ -76,6 +76,10 @@ def main() -> None:
                   "like the placeholder from .env.example — replace it with a real "
                   "key (starts 'sk-ant-api03-', ~108 chars). Transcript NOT written.")
             return
+        except anthropic.APIError as exc:
+            print(f"\nERROR: Anthropic API call failed: {exc}\n"
+                  "Transcript NOT written (nothing faked).")
+            return
         out.append(_render(res))
         out.append("\n---\n")
 
