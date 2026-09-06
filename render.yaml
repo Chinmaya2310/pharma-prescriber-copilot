@@ -18,4 +18,4 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: TEXT2SQL_MODEL
-        value: llama-3.3-70b-versatile
+        value: openai/gpt-oss-120b

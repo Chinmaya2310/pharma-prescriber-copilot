@@ -1,12 +1,14 @@
 """Run a set of realistic sales-ops questions through the agent loop and write a
 full, auditable transcript to reports/text2sql_transcript.md.
 
-Requires ANTHROPIC_API_KEY (real Claude calls). The SQL is executed against the
-live warehouse, so the rows in the transcript are real query results.
+Requires GROQ_API_KEY (real Groq/LLM calls). The SQL is executed against the live
+warehouse, so the rows in the transcript are real query results.
 
 Usage:  python -m src.text2sql.demo
 """
 from __future__ import annotations
+
+import re
 
 import pandas as pd
 
@@ -31,6 +33,9 @@ QUESTIONS = [
 ]
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
 def _render(result) -> str:
     lines = [f"### Q: {result.question}\n"]
     lines.append(f"**Answer:** {result.answer}\n")
@@ -40,12 +45,17 @@ def _render(result) -> str:
         lines.append(f"<details><summary>Attempt {a.n} — {status}</summary>\n")
         lines.append(f"```sql\n{a.sql}\n```")
         if a.error:
-            lines.append(f"\n_error:_ `{a.error}`")
+            err = _ANSI.sub("", a.error).replace("\n", " ").strip()
+            lines.append(f"\n_error:_ `{err}`")
         lines.append("\n</details>\n")
     if result.rows:
-        df = pd.DataFrame(result.rows)
+        df = pd.DataFrame(result.rows).head(10)
+        # Stringify NPI-like integer columns so tabulate doesn't show 1.1e+09.
+        for col in df.columns:
+            if "NPI" in col:
+                df[col] = df[col].astype("Int64").astype(str)
         lines.append("**Result rows:**\n")
-        lines.append(df.head(10).to_markdown(index=False))
+        lines.append(df.to_markdown(index=False))
         lines.append("")
     return "\n".join(lines)
 
@@ -60,10 +70,11 @@ def main() -> None:
 
     out = [
         "# Text-to-SQL Assistant — Demo Transcript\n",
-        "Each question below was answered by the agentic loop: the LLM (Groq / Llama "
-        "3.3 70B) wrote a read-only SQL query, it was validated + executed against "
-        "the warehouse, and the LLM answered from the returned rows. Failed attempts "
-        "(with the DB error fed back for self-correction) are shown in the expanders.\n",
+        f"Each question below was answered by the agentic loop: the LLM "
+        f"(Groq, `{client.model}`) wrote a read-only SQL query, it was validated + "
+        "executed against the warehouse, and the LLM answered from the returned rows. "
+        "Failed attempts (with the DB error fed back for self-correction) are shown in "
+        "the expanders. Data: real CMS warehouse (2022–2024 provider, 2013–2024 geo).\n",
     ]
     import groq
 

@@ -4,10 +4,10 @@ A tiny Protocol (`LLMClient`) decouples the agent from any specific LLM SDK, so:
   - production uses `GroqClient` (reads GROQ_API_KEY from env);
   - tests inject a scripted fake and never touch the network or need a key.
 
-Provider: **Groq free tier** serving Llama 3.3 70B (see DECISIONS.md for why). The
-whole agent loop / validator / executor only depends on `complete(system, user)`,
-so swapping providers is a one-file change — which is exactly how this codebase
-moved off Anthropic without touching anything downstream.
+Provider: **Groq free tier** serving `openai/gpt-oss-120b` (see DECISIONS.md for
+why, and why not Llama). The whole agent loop / validator / executor only depends
+on `complete(system, user)`, so swapping providers is a one-file change — which is
+exactly how this codebase moved off Anthropic without touching anything downstream.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEFAULT_MODEL = os.environ.get("TEXT2SQL_MODEL", "llama-3.3-70b-versatile")
+DEFAULT_MODEL = os.environ.get("TEXT2SQL_MODEL", "openai/gpt-oss-120b")
 
 
 class LLMClient(Protocol):

@@ -156,7 +156,7 @@ drops below 0.4 (`src/mlops/monitoring.py`).
 
 ## Tech
 Python 3.11 · pandas/pyarrow · scikit-learn · Prophet + XGBoost · SQLAlchemy/SQLite ·
-FastAPI · Streamlit · Groq API (Llama 3.3 70B) · sqlglot · pytest · ruff · GitHub Actions
+FastAPI · Streamlit · Groq API (gpt-oss-120b) · sqlglot · pytest · ruff · GitHub Actions
 
 ## Note on Tableau/Power BI
 The brief targets Tableau/Power BI; those aren't scriptable in this repo, so the

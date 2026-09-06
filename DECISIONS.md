@@ -265,7 +265,28 @@ auth/rate-limit failure from the provider.
 ## 14. LLM provider: Groq (Llama 3.3 70B), swapped from Anthropic
 
 **What changed.** The text-to-SQL LLM call originally used Anthropic (Claude). It
-now uses **Groq's free tier** serving **Llama 3.3 70B** (`llama-3.3-70b-versatile`).
+now uses **Groq's free tier** serving **`openai/gpt-oss-120b`**.
+
+**Model choice — and a real-world snag.** The plan was Llama 3.3 70B
+(`llama-3.3-70b-versatile`), but Groq has **retired the Llama `-versatile` models** —
+both `llama-3.3-70b-versatile` and `llama-3.1-70b-versatile` now return
+`404 model_not_found`. Querying the account's live model list
+(`client.models.list()`), the strongest available general chat models were
+`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, and `qwen/qwen3.8-27b`. I chose
+**`openai/gpt-oss-120b`** (largest, best instruction-following) and it performed
+well — see the quality note below. This is a good reminder to query the provider's
+actual catalogue rather than trust a model name from a prompt/tutorial.
+
+**Observed SQL quality (real run, `reports/text2sql_transcript.md`).** gpt-oss-120b
+was genuinely strong on this schema — comparable to what I'd expect from Claude for
+this task. It correctly used JOINs (prescribers ↔ prescriber_segments for
+specialty), CTEs + `ROW_NUMBER()` window functions (year-over-year change), and
+`MAX(year)` subqueries for "latest year," first try, on every well-posed question.
+The one miss was on the deliberately-ambiguous question: it filtered
+`Gnrc_Name = 'Metformin'` instead of `'Metformin Hcl'`, producing valid SQL that
+returned zero rows — and then **honestly reported "no data" instead of fabricating**.
+That's a value-matching gap, not a SQL-competence gap. For structured SQL over a
+small fixed schema, the free open model is more than adequate.
 
 **Why Groq.** The Anthropic account for this project ran out of credits, and paying
 for a portfolio demo isn't warranted: this task is **structured SQL generation over
