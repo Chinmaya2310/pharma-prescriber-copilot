@@ -136,8 +136,17 @@ python -m src.text2sql.demo                # writes reports/text2sql_transcript.
 The API is deployed on Render's free tier (serving-only image; builds the warehouse
 from committed ~14 MB parquets at start — no torch/prophet at runtime):
 
-- **Live URL:** _pending first deploy_ (see `render.yaml`; will be filled in once live)
+- **Live URL:** https://pharma-prescriber-copilot.onrender.com
+  ([`/docs`](https://pharma-prescriber-copilot.onrender.com/docs))
+- ⏳ **Cold start:** on the free tier the service sleeps after ~15 min idle, so the
+  first request after a while can take **~30–60s** to wake — subsequent requests are
+  fast. Not broken, just waking up.
 - Local development instructions above still work unchanged.
+
+Verified live endpoints: `/health`, `/kpis` (102M claims, 204,044 prescribers,
+8 segments), `/segments/summary`, `/forecast/{drug}/{region}` (real Prophet
+forecast), `/predict/summary` (real classification counts), and `POST /ask`
+(live Groq call → real generated SQL → grounded answer).
 
 Deploy config: [`render.yaml`](render.yaml) · serving deps: `requirements-api.txt` ·
 data rebuild: `scripts/build_deploy_db.py` (from `data/deploy/*.parquet`).
