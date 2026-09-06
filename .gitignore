@@ -25,3 +25,6 @@ reports/figures/*.png
 
 # OS
 .DS_Store
+
+# Streamlit local secrets (never commit)
+.streamlit/secrets.toml

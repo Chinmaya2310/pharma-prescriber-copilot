@@ -20,15 +20,22 @@ load_dotenv()
 
 
 def get_api_base_url() -> str:
-    """Resolve the API base URL across all three deploy targets:
-    Streamlit Cloud (st.secrets) -> Render / local .env (env var) -> localhost.
-    Accessing st.secrets raises when there's no secrets.toml (the normal local
-    case), so it's wrapped.
+    """Resolve the API base URL across all three deploy targets.
+
+    Order: env var (Render env / local .env) -> Streamlit Cloud secret -> localhost.
+    Env var is checked FIRST so that locally (where API_BASE_URL is in .env)
+    st.secrets is never accessed at all — that avoids Streamlit's "No secrets found"
+    message on machines with no secrets.toml. st.secrets is only read on Streamlit
+    Cloud, where no env var is set, and is wrapped since accessing it raises when
+    no secrets file exists.
     """
+    env = os.getenv("API_BASE_URL")
+    if env:
+        return env
     try:
         return st.secrets["API_BASE_URL"]
     except Exception:
-        return os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+        return "http://127.0.0.1:8000"
 
 
 API = get_api_base_url()
