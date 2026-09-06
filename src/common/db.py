@@ -34,9 +34,13 @@ def get_readonly_engine() -> Engine:
     return create_engine(_ro_url(), future=True, connect_args={"uri": True})
 
 
-def write_table(df: pd.DataFrame, table: str, if_exists: str = "replace") -> None:
+def write_table(
+    df: pd.DataFrame, table: str, if_exists: str = "replace", chunksize: int | None = None
+) -> None:
+    # chunksize bounds peak memory: pandas writes `chunksize` rows per INSERT batch
+    # instead of building one giant row-tuple list for the whole frame.
     with get_engine().begin() as conn:
-        df.to_sql(table, conn, if_exists=if_exists, index=False)
+        df.to_sql(table, conn, if_exists=if_exists, index=False, chunksize=chunksize)
 
 
 def read_sql(query: str, params: dict | None = None, readonly: bool = False) -> pd.DataFrame:
