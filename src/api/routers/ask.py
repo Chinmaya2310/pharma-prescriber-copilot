@@ -1,6 +1,7 @@
 """/ask endpoint — the agentic text-to-SQL assistant."""
 from __future__ import annotations
 
+import anthropic
 from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import AskRequest, AskResponse
@@ -23,5 +24,11 @@ def ask_endpoint(req: AskRequest) -> AskResponse:
         # No API key configured — fail clearly instead of pretending.
         raise HTTPException(503, str(exc)) from exc
 
-    result = run_ask(req.question, client=client, max_attempts=req.max_attempts)
+    try:
+        result = run_ask(req.question, client=client, max_attempts=req.max_attempts)
+    except anthropic.AuthenticationError as exc:
+        raise HTTPException(502, "Anthropic auth failed — the ANTHROPIC_API_KEY is "
+                            "invalid or revoked.") from exc
+    except anthropic.APIError as exc:
+        raise HTTPException(502, f"Anthropic API error: {exc}") from exc
     return AskResponse(**result.to_dict())

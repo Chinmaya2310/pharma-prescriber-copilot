@@ -65,9 +65,17 @@ def main() -> None:
         "and Claude answered from the returned rows. Failed attempts (with the DB "
         "error fed back for self-correction) are shown in the expanders.\n",
     ]
+    import anthropic
+
     for q in QUESTIONS:
         print(f"Asking: {q}")
-        res = ask(q, client=client)
+        try:
+            res = ask(q, client=client)
+        except anthropic.AuthenticationError:
+            print("\nERROR: the ANTHROPIC_API_KEY in .env is invalid (401). It looks "
+                  "like the placeholder from .env.example — replace it with a real "
+                  "key (starts 'sk-ant-api03-', ~108 chars). Transcript NOT written.")
+            return
         out.append(_render(res))
         out.append("\n---\n")
 

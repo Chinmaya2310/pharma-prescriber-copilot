@@ -27,6 +27,10 @@ plotly==5.23.0
 
 # GenAI (text-to-SQL)
 anthropic==0.34.2
+# anthropic 0.34.2 passes the deprecated `proxies=` kwarg to httpx, which httpx
+# 0.28 removed -> `Client.__init__() got an unexpected keyword argument 'proxies'`.
+# Pin httpx to the last 0.27 line (proven compatible; the whole suite passes on it).
+httpx==0.27.2
 python-dotenv==1.0.1
 sqlglot==25.16.1
 
