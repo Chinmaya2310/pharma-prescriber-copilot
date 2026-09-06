@@ -1,0 +1,11 @@
+# Dashboard theme (Streamlit reads this from the app's working dir on Cloud too).
+[theme]
+primaryColor = "#0E7C7B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F6F8"
+textColor = "#1A2B3C"
+font = "sans serif"
+
+[server]
+# Dashboard is stateless (talks to the API); no need to watch files in prod.
+fileWatcherType = "none"
