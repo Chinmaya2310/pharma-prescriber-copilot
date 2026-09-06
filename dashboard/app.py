@@ -150,8 +150,7 @@ with tab_ask:
     st.subheader("Ask a question in plain English")
     st.caption(
         "The assistant writes read-only SQL, runs it, and answers from the actual "
-        "rows. It shows you the SQL and the data — no hallucinated numbers. "
-        "Requires ANTHROPIC_API_KEY on the API server."
+        "rows. It shows you the SQL and the data."
     )
     q = st.text_input(
         "Question",
