@@ -40,7 +40,7 @@ API = get_api_base_url()
 st.set_page_config(
     page_title="Prescriber Analytics Copilot",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",  # auto-collapses on mobile
 )
 
 st.markdown(
@@ -51,6 +51,17 @@ st.markdown(
       [data-testid="stMetricLabel"] {opacity: 0.75;}
       .pill {display:inline-block; padding:2px 10px; border-radius:999px;
              font-size:0.8rem; font-weight:600;}
+
+      /* --- mobile: stack columns full-width instead of cramming side-by-side --- */
+      @media (max-width: 640px) {
+        .block-container {padding: 1rem 0.8rem 2rem;}
+        [data-testid="stHorizontalBlock"] {flex-wrap: wrap; gap: 0.4rem;}
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+          flex: 1 1 100% !important; min-width: 100% !important;
+        }
+        [data-testid="stMetricValue"] {font-size: 1.35rem;}
+        h1 {font-size: 1.5rem;}
+      }
     </style>
     """,
     unsafe_allow_html=True,
