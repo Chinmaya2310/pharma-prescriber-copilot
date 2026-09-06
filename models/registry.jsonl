@@ -1,3 +1,2 @@
-{"name": "kmeans_segmentation", "timestamp": "20260905T201247Z", "artifact": "kmeans_segmentation_20260905T201247Z.joblib", "metrics": {"k": 8, "silhouette": 0.5659630644749066, "stability_ari": null}}
-{"name": "forecasting", "timestamp": "20260905T201634Z", "artifact": "forecasting_20260905T201634Z.joblib", "metrics": {"winner": "prophet", "prophet": 3.09, "xgboost": 5.26}}
-{"name": "kmeans_segmentation", "timestamp": "20260905T204055Z", "artifact": "kmeans_segmentation_20260905T204055Z.joblib", "metrics": {"k": 8, "silhouette": 0.5659630644749066, "stability_ari": 0.7035540727803068}}
+{"name": "kmeans_segmentation", "timestamp": "20260906T025032Z", "artifact": "kmeans_segmentation_20260906T025032Z.joblib", "metrics": {"k": 8, "silhouette": 0.5659630644749066, "stability_ari": 0.7035540727803068}}
+{"name": "forecasting", "timestamp": "20260906T025248Z", "artifact": "forecasting_20260906T025248Z.joblib", "metrics": {"winner": "prophet", "prophet": 3.09, "xgboost": 5.26}}
