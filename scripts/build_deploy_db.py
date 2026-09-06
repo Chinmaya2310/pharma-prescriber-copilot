@@ -5,12 +5,17 @@ Runs at container start (see render.yaml). Fast + low-memory: just loads the
 """
 from __future__ import annotations
 
+import pathlib
 import sys
 
-import pandas as pd
+# Make `src` importable whether run as `python scripts/build_deploy_db.py`
+# (Render start command) or `python -m scripts.build_deploy_db`.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from src.common import config
-from src.common.db import write_table
+import pandas as pd  # noqa: E402
+
+from src.common import config  # noqa: E402
+from src.common.db import write_table  # noqa: E402
 
 DEPLOY_DIR = config.DATA_DIR / "deploy"
 TABLES = [
