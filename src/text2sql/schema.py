@@ -22,6 +22,9 @@ TABLE_NOTES = {
     "geo_drug_year": "Historical state-level total claims per (Gnrc_Name, State, "
                      "Year) from the CMS by-Geography dataset — the basis for the "
                      "forecast. Use this for year-over-year demand questions.",
+    "prescriber_growth_prediction": "Predicted next-period growth class per "
+                     "prescriber (predicted_class in declining/stable/growing) with "
+                     "class probabilities.",
 }
 
 

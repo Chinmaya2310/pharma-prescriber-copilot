@@ -20,7 +20,7 @@ from src.common.db import write_table  # noqa: E402
 from src.forecasting import series as S  # noqa: E402
 from src.forecasting.models import get_forecaster  # noqa: E402
 
-MODELS = ["prophet", "xgboost"]
+MODELS = ["prophet", "xgboost", "lstm"]
 MIN_TRAIN = 4          # smallest training window before we start scoring
 FORECAST_HORIZON = 2   # years to project beyond the last observed year
 
@@ -63,7 +63,7 @@ def evaluate(series: pd.DataFrame, keys: list[tuple[str, str]]) -> pd.DataFrame:
 def _save_comparison_report(cv: pd.DataFrame, winner: str, excluded: list) -> None:
     path = config.REPORTS_DIR / "forecast_comparison.md"
     lines = [
-        "# Forecasting: Prophet vs XGBoost (walk-forward CV)\n",
+        "# Forecasting: Prophet vs XGBoost vs LSTM (walk-forward CV)\n",
         "Rolling-origin CV, expanding window, 1-year horizon, pooled across all "
         "eligible (drug, state) series.\n",
         cv.to_markdown(index=False),

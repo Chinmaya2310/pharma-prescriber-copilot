@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from src.api.routers import ask, forecast, meta, segments
+from src.api.routers import ask, forecast, meta, predict, segments
 
 app = FastAPI(
     title="Pharma Prescriber Analytics & Forecasting Copilot",
@@ -21,6 +21,7 @@ app = FastAPI(
 app.include_router(meta.router)
 app.include_router(segments.router)
 app.include_router(forecast.router)
+app.include_router(predict.router)
 app.include_router(ask.router)
 
 
@@ -34,5 +35,6 @@ def root() -> dict:
     return {
         "service": "pharma-prescriber-copilot",
         "docs": "/docs",
-        "endpoints": ["/kpis", "/segments/{npi}", "/forecast/{drug}/{region}", "/ask"],
+        "endpoints": ["/kpis", "/segments/{npi}", "/forecast/{drug}/{region}",
+                      "/predict/{npi}", "/ask"],
     }

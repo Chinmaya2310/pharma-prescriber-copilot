@@ -1,0 +1,13 @@
+# Slim SERVING-only dependencies for the deployed API (Render free tier).
+# Deliberately excludes training libs (torch, prophet, xgboost, scikit-learn):
+# the API only reads the prebuilt warehouse + calls Anthropic for /ask.
+pandas==2.2.2
+pyarrow==16.1.0
+numpy==1.26.4
+SQLAlchemy==2.0.32
+fastapi==0.112.2
+uvicorn[standard]==0.30.6
+pydantic==2.8.2
+anthropic==0.34.2
+python-dotenv==1.0.1
+sqlglot==25.16.1

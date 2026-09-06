@@ -8,6 +8,10 @@ requests==2.32.3
 scikit-learn==1.5.1
 xgboost==2.1.1
 prophet==1.1.5
+# Deep learning (LSTM forecasting candidate). CPU build; on Linux/CI the default
+# PyPI wheel is CPU-only. Install with:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2
 
 # Storage
 SQLAlchemy==2.0.32

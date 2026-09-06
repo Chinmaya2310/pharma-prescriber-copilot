@@ -51,8 +51,8 @@ kpis = api_get("/kpis")
 if kpis is None:
     st.stop()
 
-tab_overview, tab_seg, tab_fc, tab_ask = st.tabs(
-    ["Overview", "Segmentation", "Forecasts", "Ask (text-to-SQL)"]
+tab_overview, tab_seg, tab_fc, tab_pred, tab_ask = st.tabs(
+    ["Overview", "Segmentation", "Forecasts", "Growth prediction", "Ask (text-to-SQL)"]
 )
 
 # ------------------------------ Overview ------------------------------ #
@@ -102,6 +102,27 @@ with tab_fc:
             fig = px.line(pts, x="year", y="forecast_claims", markers=True,
                           title=f"Forecast — {drug} / {region}")
             st.plotly_chart(fig, use_container_width=True)
+
+# --------------------------- Growth prediction ------------------------ #
+with tab_pred:
+    st.subheader("Predicted next-period growth class")
+    st.caption(
+        "A classifier (logistic regression vs XGBoost, time-honest split) predicts "
+        "whether each prescriber will be declining / stable / growing next period, "
+        "from features known as of the prior year. Shows the class + probabilities."
+    )
+    summ = api_get("/predict/summary")
+    if summ:
+        pdf = pd.DataFrame(summ)
+        fig = px.bar(pdf, x="predicted_class", y="n", color="predicted_class",
+                     title="Prescribers per predicted growth class")
+        st.plotly_chart(fig, use_container_width=True)
+    npi_p = st.text_input("Prescriber NPI (growth prediction)")
+    if npi_p.strip().isdigit():
+        pr = api_get(f"/predict/{npi_p.strip()}")
+        if pr:
+            st.metric("Predicted class", pr["predicted_class"])
+            st.json({k: pr[k] for k in ["prob_declining", "prob_stable", "prob_growing", "model"]})
 
 # -------------------------------- Ask --------------------------------- #
 with tab_ask:

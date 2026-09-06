@@ -2,10 +2,11 @@
 
 An end-to-end analytics pipeline on **real CMS Medicare Part D prescriber data**:
 it cleans and integrates the data, explores it, segments prescribers by behaviour,
-forecasts drug-level demand, serves everything through a FastAPI service and a
-Streamlit dashboard, and adds an **agentic text-to-SQL assistant** so a sales-ops
-user can ask plain-English questions and get back **real, auditable numbers** —
-no hallucination, no RAG.
+**classifies** each prescriber's likely next-period growth, **forecasts** drug-level
+demand (Prophet vs XGBoost vs LSTM, walk-forward CV), serves everything through a
+FastAPI service and a Streamlit dashboard, and adds an **agentic text-to-SQL
+assistant** so a sales-ops user can ask plain-English questions and get back
+**real, auditable numbers** — no hallucination, no RAG.
 
 > **Why no RAG?** The questions this data invites ("which specialty prescribes the
 > most X in CA", "how did claims change year over year") are structured
@@ -100,8 +101,10 @@ python -m src.text2sql.demo                # writes reports/text2sql_transcript.
 | Load warehouse | `python -m src.ingestion.load_db` |
 | EDA (charts + summary) | `python -m src.eda.eda` |
 | Segmentation | `python -m src.segmentation.train_kmeans` |
-| Forecast compare + persist | `python -m src.forecasting.compare` |
+| Forecast compare (Prophet/XGBoost/LSTM) | `python -m src.forecasting.compare` |
+| Growth classification | `python -m src.classification.train` |
 | Model registry log | `python -m src.mlops.registry` |
+| Export deploy data | `python -m scripts.export_deploy_data` |
 | Tests | `pytest -q` |
 | Lint | `ruff check src tests` |
 
@@ -114,6 +117,7 @@ python -m src.text2sql.demo                # writes reports/text2sql_transcript.
 | GET | `/segments/{npi}` | one prescriber's segment + profile |
 | GET | `/segments/summary` | segment sizes & average profiles |
 | GET | `/forecast/{drug}/{region}` | forward demand forecast |
+| GET | `/predict/{npi}` | predicted next-period growth class (+ probabilities) |
 | POST | `/ask` | agentic text-to-SQL (answer + SQL + rows + trace) |
 
 ## What's produced
@@ -126,6 +130,23 @@ python -m src.text2sql.demo                # writes reports/text2sql_transcript.
   `reports/forecast_comparison.md`, `reports/text2sql_transcript.md`
 - `reports/figures/*.png` — EDA, silhouette, forecast charts
 - `models/*.joblib` + `models/registry.jsonl` — versioned models & metrics
+
+## Live deployment
+
+The API is deployed on Render's free tier (serving-only image; builds the warehouse
+from committed ~14 MB parquets at start — no torch/prophet at runtime):
+
+- **Live URL:** _pending first deploy_ (see `render.yaml`; will be filled in once live)
+- Local development instructions above still work unchanged.
+
+Deploy config: [`render.yaml`](render.yaml) · serving deps: `requirements-api.txt` ·
+data rebuild: `scripts/build_deploy_db.py` (from `data/deploy/*.parquet`).
+
+## Monitoring
+
+Every retrain appends a drift check to [`reports/monitoring_log.md`](reports/monitoring_log.md):
+it flags if forecast MAPE exceeds 1.5× the historical average or segmentation ARI
+drops below 0.4 (`src/mlops/monitoring.py`).
 
 ## Documentation
 

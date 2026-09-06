@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from src.forecasting import series as S
-from src.forecasting.models import XGBForecaster
+from src.forecasting.models import LSTMForecaster, XGBForecaster
 
 
 def _toy_hist(n=10, start=2013, slope=10, base=100):
@@ -48,3 +48,17 @@ def test_xgb_tracks_upward_trend():
     fc = XGBForecaster().fit(hist)
     nxt = fc.predict(1)[0]
     assert nxt > hist["claims"].iloc[-2]  # not collapsing to a flat/naive-low value
+
+
+def test_lstm_predicts_requested_horizon_and_nonneg():
+    fc = LSTMForecaster(epochs=30).fit(_toy_hist(n=12))
+    preds = fc.predict(2)
+    assert len(preds) == 2
+    assert all(p >= 0 for p in preds)
+
+
+def test_lstm_short_series_falls_back():
+    # Too few points to train -> falls back to last value, no crash.
+    fc = LSTMForecaster().fit(_toy_hist(n=3))
+    preds = fc.predict(2)
+    assert len(preds) == 2

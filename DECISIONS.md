@@ -258,3 +258,99 @@ enough for a functional analytics UI.
 retry behaviour, and injection defense are all tested **without a network call or
 an API key**. The API endpoint returns a clear 503 when the key is absent instead
 of crashing.
+
+---
+
+## 10. Growth classification (declining / stable / growing)
+
+**Task.** Predict a prescriber's *next-period* growth class from features known as
+of the prior year — implicitly a forecasting problem, so it must be time-honest.
+
+**Label thresholds — chosen from the real distribution, not by default.** The
+brief suggested ±5%, but the real 2023→2024 growth distribution (139,240
+prescribers with prior-year history; median +5.3%, right-skewed) shows that at
+±5% the "stable" band collapses to ~15% of prescribers — annual counts are too
+noisy for a tight band. At **±10%** the split is a balanced **declining 28.6% /
+stable 28.4% / growing 43.0%**, so ±10% was chosen (confirmed with the user).
+Histogram: `reports/figures/classification_growth_hist.png`.
+
+**Time-honest by construction, not by split trick.** Features come from the
+2022–2023 window (as-of end-2023: 2023 volume, 2022→2023 momentum, 2023 drug-mix,
+cost, breadth, specialty); the label is the 2023→2024 class. **No feature uses any
+2024 data**, so there is no leakage from the label period — a stratified 70/30
+split over prescribers is then a valid holdout. This reuses the walk-forward
+reasoning from forecasting (features strictly precede the label) rather than
+inventing a new validation philosophy. (A cross-*period* holdout — train on an
+even earlier window, test on a later one — would need a 4th provider year, 2021,
+which the geo-block/proxy fragility prevented us from pulling reliably; noted as a
+future enhancement.)
+
+**Models & metric.** Logistic regression (interpretable baseline, with
+`class_weight='balanced'` for the mild imbalance) vs XGBoost — parallel to the
+Prophet-vs-XGBoost forecasting comparison. We report **per-class precision/recall/
+F1 and one-vs-rest ROC-AUC**, and select on **macro-F1** (not accuracy, which the
+43%-growing majority would flatter). Result: **XGBoost won (macro-F1 0.484,
+ROC-AUC 0.678) over logistic regression (0.43, 0.615)**. These are honestly modest
+— predicting next-year direction from one year of prior behaviour is genuinely
+hard and noisy; an ROC-AUC ~0.68 is "real but limited signal," which is the correct
+thing to report rather than tune toward a flattering number. Stored predictions in
+`prescriber_growth_prediction` are genuine *forward* predictions (model applied to
+as-of-2024 features to predict 2024→2025).
+
+---
+
+## 11. LSTM as a third forecasting candidate — and why it didn't help
+
+An LSTM (`src/forecasting/models.py`) was added as a third candidate, evaluated on
+the **same walk-forward folds and metrics** as Prophet and XGBoost. Real result:
+
+| model | MAPE | RMSE |
+|---|---|---|
+| Prophet | **3.09%** | 71,129 |
+| XGBoost | 5.26% | 155,589 |
+| LSTM | 5.71% | 111,898 |
+
+**The LSTM underperformed — as expected, and that's the finding, not a bug.** Each
+series has only ~12 annual points; deep learning needs far more data per series to
+learn anything a trend model can't. It was kept small (1 layer, 16 hidden units,
+~120 epochs, single-threaded) and trains in ~5s/series — deliberately *not* tuned
+harder, because making a 12-point LSTM "win" would mean overfitting the
+architecture to this dataset, which is the opposite of the lesson.
+
+One honest nuance worth mentioning in an interview: the LSTM's **RMSE (111,898) is
+lower than XGBoost's (155,589)** even though its **MAPE is higher**. That means the
+LSTM does relatively better on the few very-high-volume series (which dominate RMSE)
+and worse in percentage terms on smaller series — a reminder that the metric you
+select the winner on encodes a business choice. We select on MAPE (equal weight to
+each drug/state's *relative* accuracy), so Prophet wins.
+
+**Takeaway:** on short annual series, an interpretable additive-trend model
+(Prophet) beats both a gradient-boosted lag model and an LSTM. The right conclusion
+is "match model complexity to data size," not "add more layers."
+
+---
+
+## 12. Drift / monitoring check
+
+`src/mlops/monitoring.py` runs at the end of every retrain. It compares the
+current run's forecast MAPE and segmentation stability ARI against the historical
+average of *prior* runs in the model registry, and flags (prints a warning + writes
+to `reports/monitoring_log.md`) if **MAPE > 1.5× the historical average** or
+**ARI < 0.4**. The threshold logic is a pure function (`evaluate_drift`) so it's
+unit-tested by injecting a degraded metric and asserting the flag fires — untested
+monitoring code silently stops working. Deliberately lightweight: a threshold check
+and a log line, not a new alerting system.
+
+---
+
+## 13. Deployment (Render, serving-only image)
+
+The API is deployed to Render's free tier as a **serving-only** service:
+`requirements-api.txt` excludes torch/prophet/xgboost/scikit-learn (training libs)
+so the runtime image is small and fits the free tier's memory. The service serves a
+**prebuilt warehouse**: the full SQLite DB is ~100 MB (over GitHub's limit), so the
+tables are committed as ~14 MB of parquets (`data/deploy/`, with a slimmed
+`prescribers` keeping only API/text-to-SQL columns) and rebuilt into SQLite at
+container start (`scripts/build_deploy_db.py`) — no ML at boot. This serves the
+**real** data (all 765k prescribers, full segments/forecasts/predictions).
+`ANTHROPIC_API_KEY` is set as a Render env var (not committed) for `/ask`.

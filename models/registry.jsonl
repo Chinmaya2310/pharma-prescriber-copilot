@@ -1,2 +1,4 @@
 {"name": "kmeans_segmentation", "timestamp": "20260906T025032Z", "artifact": "kmeans_segmentation_20260906T025032Z.joblib", "metrics": {"k": 8, "silhouette": 0.5659630644749066, "stability_ari": 0.7035540727803068}}
 {"name": "forecasting", "timestamp": "20260906T025248Z", "artifact": "forecasting_20260906T025248Z.joblib", "metrics": {"winner": "prophet", "prophet": 3.09, "xgboost": 5.26}}
+{"name": "growth_classifier", "timestamp": "20260906T034146Z", "artifact": "growth_classifier_20260906T034146Z.joblib", "metrics": {"winner": "xgboost", "logreg": 0.43, "xgboost": 0.484, "roc_auc_winner": 0.678}}
+{"name": "forecasting", "timestamp": "20260906T044227Z", "artifact": "forecasting_20260906T044227Z.joblib", "metrics": {"winner": "prophet", "prophet": 3.09, "xgboost": 5.26, "lstm": 5.71}}

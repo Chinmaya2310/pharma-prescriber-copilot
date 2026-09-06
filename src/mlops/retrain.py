@@ -60,24 +60,40 @@ def run(download: bool = False, synthetic: bool = False) -> dict:
             "No raw data found. Re-run with --download (real CMS) or --synthetic (fixture)."
         )
 
+    from src.classification.train import train as train_clf
     from src.eda.eda import run as run_eda
     from src.forecasting.compare import run as run_forecast
     from src.ingestion.clean import clean
     from src.ingestion.load_db import load
+    from src.mlops.monitoring import check_drift
     from src.segmentation.train_kmeans import train as train_seg
 
-    print("[1/6] cleaning provider data ...")
+    print("[1/7] cleaning provider data ...")
     qc = clean()
-    print("[2/6] building forecast series (by-Geography if present) ...")
+    print("[2/7] building forecast series (by-Geography if present) ...")
     _build_forecast_series()
-    print("[3/6] loading warehouse ...")
+    print("[3/7] loading warehouse ...")
     n_loaded = load()
-    print("[4/6] EDA ...")
+    print("[4/7] EDA ...")
     run_eda()
-    print("[5/6] segmentation ...")
+    print("[5/7] segmentation ...")
     seg = train_seg()
-    print("[6/6] forecasting ...")
+    print("[6/7] forecasting ...")
     fc = run_forecast()
+    clf = None
+    if len(qc["years"]) >= 3:
+        print("[7/7] growth classification ...")
+        clf = train_clf()
+    else:
+        print("[7/7] growth classification skipped (needs >=3 provider years)")
+
+    # --- drift / monitoring check against historical runs ---
+    winner_mape = next((r["MAPE"] for r in fc.get("cv", []) if r["model"] == fc["winner"]), None)
+    drift = check_drift(
+        forecast_mape=winner_mape,
+        stability_ari=seg["stability_ari"],
+        forecast_winner=fc["winner"],
+    )
 
     elapsed = round(time.time() - t0, 1)
     summary = {
@@ -85,6 +101,9 @@ def run(download: bool = False, synthetic: bool = False) -> dict:
         "rows_loaded": n_loaded,
         "segmentation": {"k": seg["k"], "stability_ari": seg["stability_ari"]},
         "forecasting": {"winner": fc["winner"], "n_series": fc["n_series"]},
+        "classification": None if clf is None else {"winner": clf["winner"],
+                                                    "macro_f1": clf["macro_f1"]},
+        "drift_flags": drift["flags"],
         "elapsed_sec": elapsed,
     }
     print("\n=== retrain complete ===")

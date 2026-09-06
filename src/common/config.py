@@ -73,6 +73,18 @@ CANDIDATE_YEARS: list[int] = list(range(2013, 2025))
 SEGMENTATION_YEARS: int = 2
 
 # --------------------------------------------------------------------------- #
+# Growth classification thresholds  (Task A — chosen from the real distribution)
+# --------------------------------------------------------------------------- #
+# YoY claim-growth bands: declining <= -10%, growing >= +10%, else stable.
+# +/-10% chosen (not +/-5%) because at +/-5% "stable" collapses to ~15% of
+# prescribers (annual counts are too noisy for a tight band); +/-10% gives a
+# balanced 29/28/43 split. See reports/figures/classification_growth_hist.png
+# and DECISIONS.md.
+GROWTH_DECLINE_THRESHOLD: float = -0.10
+GROWTH_GROW_THRESHOLD: float = 0.10
+GROWTH_CLASSES: list[str] = ["declining", "stable", "growing"]
+
+# --------------------------------------------------------------------------- #
 # CMS suppression handling  (see DECISIONS.md — censored / MNAR)
 # --------------------------------------------------------------------------- #
 # CMS omits any provider-drug row with < 11 total claims, and blanks Tot_Benes

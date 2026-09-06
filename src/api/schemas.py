@@ -55,6 +55,15 @@ class AskResponse(BaseModel):
     attempts: list[AttemptModel]
 
 
+class GrowthPrediction(BaseModel):
+    prscrbr_npi: int
+    predicted_class: str
+    prob_declining: float
+    prob_stable: float
+    prob_growing: float
+    model: str
+
+
 class KpiResponse(BaseModel):
     total_claims: int
     n_prescribers: int
