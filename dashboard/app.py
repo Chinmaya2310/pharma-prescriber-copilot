@@ -17,7 +17,21 @@ import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
-API = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
+
+
+def get_api_base_url() -> str:
+    """Resolve the API base URL across all three deploy targets:
+    Streamlit Cloud (st.secrets) -> Render / local .env (env var) -> localhost.
+    Accessing st.secrets raises when there's no secrets.toml (the normal local
+    case), so it's wrapped.
+    """
+    try:
+        return st.secrets["API_BASE_URL"]
+    except Exception:
+        return os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
+
+API = get_api_base_url()
 
 st.set_page_config(page_title="Prescriber Analytics Copilot", layout="wide")
 

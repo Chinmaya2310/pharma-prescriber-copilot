@@ -1,0 +1,14 @@
+# Dashboard-only dependencies for Streamlit Community Cloud.
+# The dashboard talks ONLY to the deployed Render API over HTTP — it never imports
+# the training stack (torch/prophet/xgboost/scikit-learn) or the DB layer
+# (sqlalchemy/sqlglot). Kept separate so Streamlit Cloud doesn't try to build torch
+# (which has no wheel for its Python ABI and was failing the deploy).
+#
+# Streamlit Cloud uses the requirements file in the entrypoint's directory
+# (dashboard/) in preference to the repo-root requirements.txt. Versions pinned to
+# match the root requirements.txt to avoid behavioural drift.
+streamlit==1.38.0
+pandas==2.2.2
+plotly==5.23.0
+requests==2.32.3
+python-dotenv==1.0.1
