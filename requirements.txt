@@ -25,11 +25,10 @@ pydantic==2.8.2
 streamlit==1.38.0
 plotly==5.23.0
 
-# GenAI (text-to-SQL)
-anthropic==0.34.2
-# anthropic 0.34.2 passes the deprecated `proxies=` kwarg to httpx, which httpx
-# 0.28 removed -> `Client.__init__() got an unexpected keyword argument 'proxies'`.
-# Pin httpx to the last 0.27 line (proven compatible; the whole suite passes on it).
+# GenAI (text-to-SQL) — Groq free tier (Llama 3.3 70B). See DECISIONS.md.
+groq==1.7.0
+# httpx pinned to the last 0.27 line: proven compatible with the whole SDK stack
+# (groq + fastapi TestClient) and the full suite passes on it.
 httpx==0.27.2
 python-dotenv==1.0.1
 sqlglot==25.16.1

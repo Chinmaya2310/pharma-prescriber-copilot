@@ -30,10 +30,10 @@ def test_segments_missing_returns_503(temp_warehouse):
 
 
 def test_ask_without_api_key_returns_503(temp_warehouse, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
     r = client.post("/ask", json={"question": "how many claims in CA?"})
     assert r.status_code == 503
-    assert "ANTHROPIC_API_KEY" in r.json()["detail"]
+    assert "GROQ_API_KEY" in r.json()["detail"]
 
 
 def test_ask_validation_rejects_short_question():

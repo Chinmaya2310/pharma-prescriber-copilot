@@ -12,7 +12,7 @@ import pandas as pd
 
 from src.common import config
 from src.text2sql.agent_loop import ask
-from src.text2sql.llm import AnthropicClient
+from src.text2sql.llm import GroqClient
 
 QUESTIONS = [
     # straightforward aggregations
@@ -52,32 +52,31 @@ def _render(result) -> str:
 
 def main() -> None:
     try:
-        client = AnthropicClient()
+        client = GroqClient()
     except RuntimeError as exc:
         print(exc)
-        print("Set ANTHROPIC_API_KEY in .env to generate the live transcript.")
+        print("Set GROQ_API_KEY in .env to generate the live transcript.")
         return
 
     out = [
         "# Text-to-SQL Assistant — Demo Transcript\n",
-        "Each question below was answered by the agentic loop: Claude wrote a "
-        "read-only SQL query, it was validated + executed against the warehouse, "
-        "and Claude answered from the returned rows. Failed attempts (with the DB "
-        "error fed back for self-correction) are shown in the expanders.\n",
+        "Each question below was answered by the agentic loop: the LLM (Groq / Llama "
+        "3.3 70B) wrote a read-only SQL query, it was validated + executed against "
+        "the warehouse, and the LLM answered from the returned rows. Failed attempts "
+        "(with the DB error fed back for self-correction) are shown in the expanders.\n",
     ]
-    import anthropic
+    import groq
 
     for q in QUESTIONS:
         print(f"Asking: {q}")
         try:
             res = ask(q, client=client)
-        except anthropic.AuthenticationError:
-            print("\nERROR: the ANTHROPIC_API_KEY in .env is invalid (401). It looks "
-                  "like the placeholder from .env.example — replace it with a real "
-                  "key (starts 'sk-ant-api03-', ~108 chars). Transcript NOT written.")
+        except groq.AuthenticationError:
+            print("\nERROR: the GROQ_API_KEY in .env is invalid (401). Get a free key "
+                  "at https://console.groq.com and put it in .env. Transcript NOT written.")
             return
-        except anthropic.APIError as exc:
-            print(f"\nERROR: Anthropic API call failed: {exc}\n"
+        except groq.APIError as exc:
+            print(f"\nERROR: Groq API call failed: {exc}\n"
                   "Transcript NOT written (nothing faked).")
             return
         out.append(_render(res))

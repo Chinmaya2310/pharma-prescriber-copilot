@@ -14,8 +14,8 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.9"
       # The /ask text-to-SQL endpoint needs this; set it in the Render dashboard
-      # (sync:false keeps it out of source control).
-      - key: ANTHROPIC_API_KEY
+      # (sync:false keeps it out of source control). Free key at console.groq.com.
+      - key: GROQ_API_KEY
         sync: false
       - key: TEXT2SQL_MODEL
-        value: claude-opus-4-8
+        value: llama-3.3-70b-versatile

@@ -4,7 +4,7 @@ Why this exists: the live demo (`python -m src.text2sql.demo`) needs
 ANTHROPIC_API_KEY. This script produces a transcript that exercises the *real*
 validator + read-only executor against the warehouse, so the SQL and result rows
 are genuine; only the natural-language phrasing is templated (a stand-in for what
-Claude would write). It also demonstrates the retry loop with a deliberately
+the LLM would write). It also demonstrates the retry loop with a deliberately
 broken first attempt. Clearly labelled as illustrative in the output.
 
 Run:  python scripts/generate_illustrative_transcript.py
@@ -109,9 +109,9 @@ def main() -> None:
         "> **Illustrative build-time artifact.** The SQL below is run through the "
         "*real* validator and the *real* read-only connection against the "
         "warehouse, so the queries and result rows are genuine. The natural-"
-        "language phrasing is a templated stand-in because no `ANTHROPIC_API_KEY` "
+        "language phrasing is a templated stand-in because no `GROQ_API_KEY` "
         "was available at build time — run `python -m src.text2sql.demo` with a key "
-        "for live Claude-generated SQL and answers. Queries run against the **real "
+        "for live LLM-generated SQL and answers. Queries run against the **real "
         "CMS warehouse** (2022–2024 provider data, 2013–2024 geography series).\n",
         "Note the 2nd question: the first attempt uses a wrong column name, the DB "
         "error is captured, and the corrected query succeeds — the agentic retry "

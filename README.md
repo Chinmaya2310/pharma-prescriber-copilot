@@ -84,8 +84,8 @@ uvicorn src.api.main:app --reload          # docs at http://127.0.0.1:8000/docs
 # 4. Dashboard (new terminal, same env)
 streamlit run dashboard/app.py
 
-# 5. (Optional) the text-to-SQL assistant needs an Anthropic key
-cp .env.example .env    # then add ANTHROPIC_API_KEY
+# 5. (Optional) the text-to-SQL assistant needs a free Groq key (console.groq.com)
+cp .env.example .env    # then add GROQ_API_KEY
 python -m src.text2sql.demo                # writes reports/text2sql_transcript.md
 ```
 
@@ -156,7 +156,7 @@ drops below 0.4 (`src/mlops/monitoring.py`).
 
 ## Tech
 Python 3.11 · pandas/pyarrow · scikit-learn · Prophet + XGBoost · SQLAlchemy/SQLite ·
-FastAPI · Streamlit · Anthropic API · sqlglot · pytest · ruff · GitHub Actions
+FastAPI · Streamlit · Groq API (Llama 3.3 70B) · sqlglot · pytest · ruff · GitHub Actions
 
 ## Note on Tableau/Power BI
 The brief targets Tableau/Power BI; those aren't scriptable in this repo, so the

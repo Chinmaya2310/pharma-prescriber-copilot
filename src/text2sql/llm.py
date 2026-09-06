@@ -1,8 +1,13 @@
 """LLM client abstraction for the text-to-SQL assistant.
 
-A tiny Protocol (`LLMClient`) decouples the agent from the Anthropic SDK so that:
-  - production uses `AnthropicClient` (reads ANTHROPIC_API_KEY from env);
+A tiny Protocol (`LLMClient`) decouples the agent from any specific LLM SDK, so:
+  - production uses `GroqClient` (reads GROQ_API_KEY from env);
   - tests inject a scripted fake and never touch the network or need a key.
+
+Provider: **Groq free tier** serving Llama 3.3 70B (see DECISIONS.md for why). The
+whole agent loop / validator / executor only depends on `complete(system, user)`,
+so swapping providers is a one-file change — which is exactly how this codebase
+moved off Anthropic without touching anything downstream.
 """
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEFAULT_MODEL = os.environ.get("TEXT2SQL_MODEL", "claude-opus-4-8")
+DEFAULT_MODEL = os.environ.get("TEXT2SQL_MODEL", "llama-3.3-70b-versatile")
 
 
 class LLMClient(Protocol):
@@ -21,31 +26,34 @@ class LLMClient(Protocol):
         ...
 
 
-class AnthropicClient:
-    """Thin wrapper over the Anthropic Messages API."""
+class GroqClient:
+    """Thin wrapper over Groq's OpenAI-compatible chat completions API."""
 
     def __init__(self, model: str = DEFAULT_MODEL, max_tokens: int = 1024):
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key "
+                "GROQ_API_KEY is not set. Get a free key at https://console.groq.com "
+                "(no credit card required) and add it to .env "
                 "(needed only for the /ask text-to-SQL endpoint)."
             )
-        import anthropic
+        import groq
 
-        self._client = anthropic.Anthropic(api_key=api_key)
+        self._client = groq.Groq(api_key=api_key)
         self.model = model
         self.max_tokens = max_tokens
 
     def complete(self, system: str, user: str) -> str:
-        resp = self._client.messages.create(
+        resp = self._client.chat.completions.create(
             model=self.model,
             max_tokens=self.max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": user}],
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
         )
-        return "".join(block.text for block in resp.content if block.type == "text")
+        return resp.choices[0].message.content or ""
 
 
 def default_client() -> LLMClient:
-    return AnthropicClient()
+    return GroqClient()

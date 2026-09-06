@@ -251,13 +251,43 @@ enough for a functional analytics UI.
 
 ---
 
-## 9. LLM client abstraction (testability)
+## 9. LLM client abstraction (testability + provider portability)
 
-`text2sql/llm.py` defines an `LLMClient` Protocol. Production uses `AnthropicClient`
-(reads `ANTHROPIC_API_KEY`); tests inject a scripted fake, so the agent loop,
-retry behaviour, and injection defense are all tested **without a network call or
-an API key**. The API endpoint returns a clear 503 when the key is absent instead
-of crashing.
+`text2sql/llm.py` defines an `LLMClient` Protocol with a single method,
+`complete(system, user)`. Production uses `GroqClient`; tests inject a scripted
+fake, so the agent loop, retry behaviour, and injection defense are all tested
+**without a network call or an API key**. The API endpoint returns a clear 503
+when the key is absent instead of crashing, and a 502 with a readable message on an
+auth/rate-limit failure from the provider.
+
+---
+
+## 14. LLM provider: Groq (Llama 3.3 70B), swapped from Anthropic
+
+**What changed.** The text-to-SQL LLM call originally used Anthropic (Claude). It
+now uses **Groq's free tier** serving **Llama 3.3 70B** (`llama-3.3-70b-versatile`).
+
+**Why Groq.** The Anthropic account for this project ran out of credits, and paying
+for a portfolio demo isn't warranted: this task is **structured SQL generation over
+a small, fixed 4-table schema**, which a 70B open model handles well. Groq's free
+tier needs **no credit card**, has generous rate limits, and is extremely fast
+(low latency helps the retry loop). For this task's complexity there's no
+functional benefit to a frontier model, so the free option is the right
+engineering trade-off — not a compromise on the result.
+
+**Why it was a one-file change, not a rewrite.** Everything downstream — the agent
+loop, the SQL validator, the read-only executor, the retry logic — depends only on
+the `complete(system, user)` abstraction (§9), never on the SDK. So swapping
+providers meant rewriting `llm.py` and the two call sites' error handling, and
+nothing else. The validator/executor/retry code was untouched. **This is the
+interview point:** decoupling the LLM call from the agent machinery makes the
+provider a configuration detail, not an architectural commitment.
+
+**Package choice.** Used the dedicated `groq` SDK (Groq is OpenAI-compatible, so the
+`openai` SDK pointed at Groq's base URL would also work) — the `groq` package keeps
+the client construction trivial and gives clearly-named exceptions
+(`groq.AuthenticationError`, `groq.APIError`) for precise error handling. `anthropic`
+was removed from both requirements files after confirming nothing else imported it.
 
 ---
 
