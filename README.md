@@ -133,14 +133,19 @@ python -m src.text2sql.demo                # writes reports/text2sql_transcript.
 
 ## Live deployment
 
-The API is deployed on Render's free tier (serving-only image; builds the warehouse
-from committed ~14 MB parquets at start — no torch/prophet at runtime):
+Two pieces are deployed: a **Streamlit dashboard** (front-end) that talks to a
+**FastAPI service on Render** (data API + agentic text-to-SQL).
 
-- **Live URL:** https://pharma-prescriber-copilot.onrender.com
+- **Dashboard (live):** https://pharma-prescriber-copilot-dwzwektf9uyprjavcp9ytr.streamlit.app
+- **API (Render):** https://pharma-prescriber-copilot.onrender.com
   ([`/docs`](https://pharma-prescriber-copilot.onrender.com/docs))
-- ⏳ **Cold start:** on the free tier the service sleeps after ~15 min idle, so the
-  first request after a while can take **~30–60s** to wake — subsequent requests are
-  fast. Not broken, just waking up.
+
+The Render service is a serving-only image (builds the warehouse from committed
+~14 MB parquets at start — no torch/prophet at runtime).
+
+- ⏳ **Cold start:** both free tiers sleep after ~15 min idle, so the first load can
+  take **~30–60s** to wake (dashboard boots, then Render API wakes on its first
+  call) — subsequent requests are fast. Not broken, just waking up.
 - Local development instructions above still work unchanged.
 
 Verified live endpoints: `/health`, `/kpis` (102M claims, 204,044 prescribers,
